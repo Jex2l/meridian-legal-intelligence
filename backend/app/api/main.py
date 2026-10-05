@@ -15,7 +15,36 @@ logger = logging.getLogger("lexrag")
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    _warm_up_models()
     yield
+
+
+def _warm_up_models() -> None:
+    """Force-load the embedding and reranker models (sentence-transformers)
+    during startup instead of lazily on a live request.
+
+    Both are `@lru_cache`d singletons that download from HuggingFace and
+    load into memory on first use (see app/retrieval/embedding.py and
+    reranker.py). Left lazy, that cost lands on whichever user's request
+    happens to be first -- on a free-tier host this took 47+ seconds in
+    practice and blew past the platform's request-gateway timeout (502,
+    even though the app was still working). Startup has a much more
+    generous timeout (the deploy process waited minutes for a port to
+    open), so paying the cost here means no live request ever has to.
+    """
+    try:
+        from app.retrieval.embedding import embed_texts
+        from app.retrieval.reranker import rerank
+
+        embed_texts(["warm-up"])
+        rerank("warm-up", ["warm-up"])
+        logger.info("Embedding and reranker models warmed up.")
+    except Exception:  # noqa: BLE001
+        # Don't block startup on a warm-up failure (e.g. no network to
+        # HuggingFace in some environment) -- the app will just pay the
+        # lazy-load cost on first real request instead, same as before
+        # this existed.
+        logger.exception("Model warm-up failed; falling back to lazy load on first request.")
 
 
 app = FastAPI(title="LexRAG API", version="0.1.0", lifespan=lifespan)
