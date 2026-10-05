@@ -24,6 +24,7 @@ def ingest_file(
     source_type: SourceType = SourceType.UPLOAD,
     jurisdiction: str | None = None,
     title: str | None = None,
+    embed: bool = True,
 ) -> Document:
     """Extract, chunk, and persist a document. Public-corpus ingestion passes
     workspace_id=None/owner_user_id=None deliberately; every other caller
@@ -82,6 +83,12 @@ def ingest_file(
 
         document.status = DocumentStatus.READY.value
         session.commit()
+
+        if embed:
+            from app.retrieval.backfill import backfill_embeddings
+
+            backfill_embeddings(session)
+
         return document
     except Exception as exc:  # noqa: BLE001
         session.rollback()

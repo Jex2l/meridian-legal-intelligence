@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-## Status: Phase 1 complete — scaffold, Docker Compose, ingestion pipeline
+## Status: Phase 2 complete — hybrid retrieval, reranking, query CLI
 
 ### What's built
 - `docker-compose.yml`: a single Postgres instance (`pgvector/pgvector:pg16`)
@@ -84,6 +84,63 @@ split out later if hybrid-search quality or scale demands a dedicated engine.
 - OCR requires `poppler` and `tesseract` system binaries, only exercised when
   a PDF page has too little extractable text.
 
-### Next: Phase 2
-Hybrid retrieval (BM25 + dense embeddings) with cross-encoder reranking, and
-a CLI to query it.
+## Phase 2: hybrid retrieval, reranking, query CLI
+
+### What's built
+- `backend/app/core/db.py`: `_ensure_search_indexes()` adds a `tsv` generated
+  column (`to_tsvector('english', text)`, `STORED`) with a GIN index for
+  full-text search, and an HNSW cosine index on `chunks.embedding` for dense
+  search. Raw idempotent SQL rather than Alembic, same tradeoff as Phase 1.
+- `backend/app/retrieval/embedding.py`: dense embeddings via
+  `sentence-transformers/all-MiniLM-L6-v2` (384-dim, matches the schema).
+- `backend/app/retrieval/reranker.py`: cross-encoder reranking via
+  `cross-encoder/ms-marco-MiniLM-L-6-v2`.
+- `backend/app/retrieval/search.py`: `hybrid_search()` — runs a full-text
+  query and a dense-vector query **separately**, each with
+  `WHERE (workspace_id = :ws OR workspace_id IS NULL)` baked directly into
+  its SQL, then fuses the two ranked lists with Reciprocal Rank Fusion (RRF),
+  then reranks the fused shortlist with the cross-encoder. Metadata filters
+  (`jurisdiction`, `document_id`, date range) are appended to both queries'
+  `WHERE` clauses too — never applied after the fact. This is the mechanism
+  that satisfies the "isolation enforced inside the search query" constraint:
+  a chunk from another workspace is never fetched from Postgres in the first
+  place.
+- `backend/app/retrieval/backfill.py`: embeds any chunk with `embedding IS
+  NULL` in batches; called automatically at the end of `ingest_file()`
+  (`embed=True` by default) and also runnable standalone.
+- `backend/app/retrieval/cli.py`: query CLI and a manual `backfill` command.
+- Tests: `backend/tests/test_search.py` — retrieval relevance, cross-encoder
+  reranking, metadata-filter enforcement, and (most importantly) a test that
+  ingests an "indemnification" clause into workspace A only and a scoped
+  query from workspace B never returns it, even though public-corpus
+  (`workspace_id IS NULL`) chunks remain visible from both.
+- `backend/tests/conftest.py` now truncates the chunks/documents/users/
+  workspaces tables before every test, since `ingest_file()` commits
+  internally and a bare `session.rollback()` can't undo that — without this,
+  repeated local test runs silently accumulate rows in the dev database.
+
+### How to run it
+
+```bash
+cd backend && source .venv/bin/activate
+
+# embed any chunks ingested before Phase 2 existed
+python -m app.retrieval.cli backfill
+
+# query
+python -m app.retrieval.cli query <workspace_id> "indemnification obligations" --k 3
+python -m app.retrieval.cli query <workspace_id> "indemnification obligations" --k 3 --no-rerank
+python -m app.retrieval.cli query <workspace_id> "query" --jurisdiction "New York"
+```
+
+### Known limitations (Phase 2)
+- BM25-style ranking uses Postgres `ts_rank_cd` over `to_tsvector`, not a
+  true BM25 implementation — a reasonable MVP approximation, revisit if
+  lexical-match quality matters more as the corpus grows.
+- RRF fusion weights BM25 and dense retrieval equally; no tuning yet.
+- No eval numbers yet for recall@k / precision / reranker lift — that's
+  Phase 4.
+
+### Next: Phase 3
+Grounded answer generation with inline citations and the low-confidence
+fallback.

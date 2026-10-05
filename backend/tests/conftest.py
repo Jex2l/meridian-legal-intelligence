@@ -1,9 +1,33 @@
+import os
 from pathlib import Path
 
 import pytest
 from docx import Document as DocxDocument
 from reportlab.lib.pagesizes import LETTER
 from reportlab.pdfgen import canvas
+
+
+@pytest.fixture(autouse=True)
+def _truncate_db_tables():
+    """ingest_file() commits internally, so a plain session.rollback() in a
+    test fixture can't undo it. Truncate before each test so repeated runs
+    against the shared dev Postgres don't accumulate cross-run garbage that
+    would make retrieval results (and later, eval numbers) hard to reason
+    about."""
+    if os.environ.get("LEXRAG_SKIP_DB_TESTS") == "1":
+        yield
+        return
+    import sqlalchemy
+    from sqlalchemy import text
+
+    from app.core.db import engine
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("TRUNCATE TABLE chunks, documents, users, workspaces CASCADE"))
+    except (sqlalchemy.exc.OperationalError, sqlalchemy.exc.ProgrammingError):
+        pass  # Postgres unreachable, or schema not created yet; _ensure_db will handle it.
+    yield
 
 
 @pytest.fixture

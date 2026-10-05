@@ -52,6 +52,7 @@ def test_ingest_upload_requires_workspace_and_user(db_session, sample_docx):
             filename="sample.docx",
             workspace_id=None,
             owner_user_id=None,
+            embed=False,
         )
 
 
@@ -77,6 +78,7 @@ def test_ingest_public_corpus_has_no_workspace(db_session, sample_pdf):
         workspace_id=None,
         owner_user_id=None,
         source_type=SourceType.PUBLIC_CORPUS,
+        embed=False,
     )
     assert document.workspace_id is None
     assert all(c.workspace_id is None for c in document.chunks)
@@ -93,10 +95,10 @@ def test_two_workspaces_documents_are_distinct(db_session, sample_docx, sample_p
     db_session.commit()
 
     doc_a = ingest_file(
-        db_session, src_path=sample_docx, filename="a.docx", workspace_id=ws_a.id, owner_user_id=user_a.id
+        db_session, src_path=sample_docx, filename="a.docx", workspace_id=ws_a.id, owner_user_id=user_a.id, embed=False
     )
     doc_b = ingest_file(
-        db_session, src_path=sample_pdf, filename="b.pdf", workspace_id=ws_b.id, owner_user_id=user_b.id
+        db_session, src_path=sample_pdf, filename="b.pdf", workspace_id=ws_b.id, owner_user_id=user_b.id, embed=False
     )
 
     rows = db_session.execute(
