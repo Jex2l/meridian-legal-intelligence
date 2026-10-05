@@ -10,7 +10,16 @@ services:
     runtime: python
     plan: free
     rootDir: backend
-    buildCommand: "pip install -r requirements.txt"
+    # Installs the CPU-only torch wheel FIRST, from PyTorch's own CPU
+    # index. The default PyPI `torch` (what plain `pip install -r
+    # requirements.txt` pulls in as a transitive dependency of
+    # sentence-transformers) is the GPU/CUDA build, which bundles ~1GB of
+    # NVIDIA libraries that are useless on a GPU-less host but still get
+    # loaded into memory -- confirmed live, this alone was enough to blow
+    # a 512MB instance's RAM during model loading. Installing the CPU
+    # wheel first means `pip install -r requirements.txt` finds torch
+    # already satisfied and never fetches the CUDA build.
+    buildCommand: "pip install torch==2.9.1+cpu --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt"
     startCommand: "uvicorn app.api.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     envVars:
