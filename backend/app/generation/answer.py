@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.generation.citations import ValidationResult, extract_and_validate_citations
 from app.generation.confidence import DEFAULT_CONFIDENCE_THRESHOLD, is_low_confidence
+from app.generation.faithfulness import is_answer_faithful
 from app.generation.prompts import NO_SUPPORT_MESSAGE, SYSTEM_PROMPT, build_user_prompt
 from app.generation.provider import LLMProvider, get_default_provider
 from app.retrieval.search import RetrievedChunk, SearchFilters, hybrid_search
@@ -22,6 +23,7 @@ class AnswerResult:
     validation: ValidationResult | None
     low_confidence: bool
     ungrounded_response_rejected: bool = False
+    rejection_reason: str | None = None  # "invalid_citation" | "no_citation" | "unfaithful", when rejected
 
 
 def answer_question(
@@ -60,6 +62,37 @@ def answer_question(
             validation=validation,
             low_confidence=False,
             ungrounded_response_rejected=True,
+            rejection_reason="invalid_citation",
+        )
+
+    is_no_support = raw_answer.strip() == NO_SUPPORT_MESSAGE
+    if not is_no_support and not validation.citations:
+        # The model made claims with zero citation markers at all -- the
+        # prompt requires one per claim, so an answer with none is treated
+        # as uncited, not as "no invalid citations found."
+        return AnswerResult(
+            question=question,
+            answer_text=NO_SUPPORT_MESSAGE,
+            retrieved_chunks=retrieved,
+            validation=validation,
+            low_confidence=False,
+            ungrounded_response_rejected=True,
+            rejection_reason="no_citation",
+        )
+
+    if not is_no_support and not is_answer_faithful(raw_answer, retrieved):
+        # A majority of cited sentences don't actually read as supported by
+        # their own cited passage (per the cross-encoder faithfulness
+        # check) -- the citation exists, but the claim attached to it
+        # likely doesn't match what the passage says.
+        return AnswerResult(
+            question=question,
+            answer_text=NO_SUPPORT_MESSAGE,
+            retrieved_chunks=retrieved,
+            validation=validation,
+            low_confidence=False,
+            ungrounded_response_rejected=True,
+            rejection_reason="unfaithful",
         )
 
     return AnswerResult(

@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-**Status: MVP complete (Phases 1–9).** The build log below (one section per
+**Status: MVP complete (Phases 1–10).** The build log below (one section per
 phase) is kept as the detailed record of what was built, why, and what's
 verified at each step. This top section is the map: architecture, how to
 run everything, and where things stand overall.
@@ -721,3 +721,107 @@ under the new, less strict threshold.
   more robust long-term fix would be query reformulation (rephrase a
   drafting instruction as a question before reranking) or a reranker
   fine-tuned on imperative queries — noted here as roadmap, not built.
+
+## Phase 10: making the RAG pipeline robust, not just functional
+
+Explicit goal for this phase: close the gaps between "the happy path works"
+and "this behaves correctly under real, messy conditions." Three real
+defects were found and fixed by actually running the system repeatedly
+against live output, not by inspection alone.
+
+### 1. Citations that exist aren't the same as citations that are true
+Citation validation (`citations.py`) only ever checked that a cited index
+resolved to a real retrieved chunk. Two gaps followed directly from that:
+- An answer with **zero** citation markers at all passed validation,
+  because "no invalid indices found" is trivially true when there are no
+  indices at all. Fixed: `answer_question()`/`draft()` now reject any
+  non-fallback response with zero citations (`rejection_reason:
+  "no_citation"`).
+- A citation could point at a REAL chunk while the claim attached to it
+  said something that chunk doesn't support -- e.g. citing the
+  indemnification clause while asserting something about liquidated
+  damages. New module `app/generation/faithfulness.py` closes this using
+  the cross-encoder reranker as a cheap entailment check (no extra model
+  needed): "The moon is made of cheese according to this clause [1]."
+  against a real indemnification passage is correctly rejected
+  (`rejection_reason: "unfaithful"`), confirmed in
+  `tests/test_generation.py`.
+
+### 2. The faithfulness check itself had two real bugs, found by live testing
+A naive sentence-level implementation was wrong in two different, opposite
+ways, both caught by actually running real model output through it rather
+than by unit tests against hand-written fixtures:
+- **False rejection on short lead sentences.** A model commonly writes
+  "Yes, there is a cap on liability [1]." followed by an uncited
+  explanatory sentence with the actual supporting detail. Scored alone,
+  the bare lead sentence didn't resemble the passage -- correct content,
+  wrongly rejected. Fixed by introducing "claim spans": a citation-bearing
+  sentence absorbs any immediately following uncited sentences before
+  being scored, so the lead sentence and its explanation are judged
+  together. A first attempt at this fix (grouping by whole paragraph
+  instead) overcorrected: scoring an entire paragraph against EACH of
+  several distinct citations it contains dilutes every claim with the
+  others' text, including genuinely correct ones -- also caught live, and
+  both failure modes are now regression tests in `tests/test_faithfulness.py`.
+- **False rejection of correctly-drafted clause language.** Applying the
+  same entailment check to Draft mode rejected a well-grounded clause
+  rewrite because deliberately-reworded language scored low against the
+  original passage it was derived from -- the check was punishing the
+  draft for doing exactly what "rewrite this clause" asked it to do.
+  Faithfulness-as-entailment is the right question for a Q&A answer
+  (which should restate source content) but the wrong question for
+  drafted text (which is intentionally a transformation of it). Fixed by
+  scoping the faithfulness gate to Ask mode only; Draft mode keeps the
+  citation-validity and citation-requirement gates, which don't depend on
+  content matching. Documented in `app/generation/draft.py`'s module
+  docstring so the asymmetry reads as a decision, not an oversight.
+
+### 3. Smaller robustness fixes
+- **Case-insensitive jurisdiction filter** (`retrieval/search.py`): was
+  `d.jurisdiction = :jurisdiction` (exact match), now `ILIKE` -- a client
+  passing `"new york"` against a stored `"New York"` previously got zero
+  results silently.
+- **Blank-input rejection**: `/ask` and `/draft` now reject an empty or
+  whitespace-only question/task with `422` via a Pydantic validator,
+  rather than running retrieval on nothing.
+- **Upload size cap**: `/documents/upload` now rejects files over 25MB
+  with `413` instead of letting an unbounded upload tie up a worker
+  thread for minutes inside the synchronous extract→OCR→chunk→embed
+  pipeline.
+- **`rejection_reason` surfaced through the API** (`"invalid_citation"` |
+  `"no_citation"` | `"unfaithful"`) so a rejected response is debuggable,
+  not just a bare boolean.
+
+### Verified
+Full backend suite: 46 tests pass. Re-ran the eval harness with
+`--generation` (real Ollama generation) after each fix:
+
+| | citation accuracy | faithfulness | fell back |
+|---|---|---|---|
+| Phase 8 (before this phase) | 1.00 | 0.89 | 1/36 |
+| After adding the (buggy) faithfulness gate | 1.00 | 0.97 | 3/36 |
+| After fixing the claim-span bug + scoping to Ask mode | 1.00 | **1.00** | 6/36 |
+
+Also re-ran the exact two queries a live user reported as broken in Phase
+9 three times each against the running API: all 6 attempts (3 Ask, 3
+Draft) now succeed with correctly cited, faithful answers.
+
+### Known limitations (Phase 10)
+- The fallback rate climbed from 1/36 to 6/36 as the gates got stricter.
+  This is a deliberate tradeoff for a legal tool -- a wrong "I couldn't
+  find support for this" costs a lawyer a follow-up question; a wrong
+  confident-sounding citation costs more. Still worth watching: if this
+  ratio climbs further as the corpus or model changes, that's a signal to
+  revisit `FAITHFULNESS_MIN_RATIO`, not just accept it.
+- The faithfulness check is still a cross-encoder relevance proxy, not a
+  real entailment/fact-checking model -- it catches claims that don't
+  resemble their cited passage at all (the cases tested here), not subtler
+  misrepresentations of a passage that *does* resemble the claim
+  superficially.
+- Claim-span grouping is a heuristic (merge trailing uncited sentences
+  into the preceding citation) tuned against the specific failure patterns
+  found in this session's testing. A sufficiently different model's
+  citation style could expose a third failure mode this phase didn't
+  anticipate -- the fix here is methodology (test against real generated
+  output, not just hand-written fixtures), not a claim that every such bug
+  is now impossible.

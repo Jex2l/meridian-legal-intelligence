@@ -1,6 +1,20 @@
 """Drafting mode: same retrieve -> generate -> validate pipeline as Q&A, but
 with a drafting-specific prompt that asks for a draft plus a cited
 reasoning section instead of a direct answer.
+
+Deliberately does NOT run the faithfulness entailment check that answer.py
+uses (see app/generation/faithfulness.py). That check asks "does this claim
+read as supported by its cited passage", which is the right question for a
+Q&A answer that should restate source content -- but wrong for drafted
+clause language, which is INTENTIONALLY a transformation of the source
+("rewrite X to favor the buyer"), not a restatement of it. Live testing
+confirmed this: a correct, well-grounded clause rewrite was rejected
+because its deliberately-reworded language scored low against the
+cross-encoder when compared to the original passage it was derived from --
+the check was punishing the draft for doing exactly what it was asked to
+do. Citation-validity checks (a cited index must be real, and at least one
+citation must exist) still apply, since those don't depend on content
+matching.
 """
 
 import uuid
@@ -23,6 +37,7 @@ class DraftResult:
     validation: ValidationResult | None
     low_confidence: bool
     ungrounded_response_rejected: bool = False
+    rejection_reason: str | None = None  # "invalid_citation" | "no_citation", when rejected (no faithfulness gate -- see module docstring)
 
 
 def draft(
@@ -58,6 +73,19 @@ def draft(
             validation=validation,
             low_confidence=False,
             ungrounded_response_rejected=True,
+            rejection_reason="invalid_citation",
+        )
+
+    is_no_support = raw_draft.strip() == NO_SUPPORT_MESSAGE
+    if not is_no_support and not validation.citations:
+        return DraftResult(
+            task=task,
+            draft_text=NO_SUPPORT_MESSAGE,
+            retrieved_chunks=retrieved,
+            validation=validation,
+            low_confidence=False,
+            ungrounded_response_rejected=True,
+            rejection_reason="no_citation",
         )
 
     return DraftResult(

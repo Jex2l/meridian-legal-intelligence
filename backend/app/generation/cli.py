@@ -33,7 +33,7 @@ def cmd_ask(args: argparse.Namespace) -> None:
         if not result.low_confidence and not result.ungrounded_response_rejected:
             _print_sources(result.retrieved_chunks)
         if result.ungrounded_response_rejected:
-            print("\n[blocked: model cited a passage outside the retrieved set]")
+            print(f"\n[blocked: {result.rejection_reason}]")
 
 
 def cmd_draft(args: argparse.Namespace) -> None:
@@ -48,7 +48,7 @@ def cmd_draft(args: argparse.Namespace) -> None:
         if not result.low_confidence and not result.ungrounded_response_rejected:
             _print_sources(result.retrieved_chunks)
         if result.ungrounded_response_rejected:
-            print("\n[blocked: model cited a passage outside the retrieved set]")
+            print(f"\n[blocked: {result.rejection_reason}]")
 
 
 def main() -> None:

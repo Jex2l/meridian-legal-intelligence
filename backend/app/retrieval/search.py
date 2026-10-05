@@ -47,7 +47,9 @@ def _filter_clause(filters: SearchFilters | None, params: dict) -> str:
     clauses = []
     if filters:
         if filters.jurisdiction:
-            clauses.append("d.jurisdiction = :jurisdiction")
+            # Case-insensitive: a client passing "new york" vs. "New York"
+            # should not silently get zero results from a strict `=` match.
+            clauses.append("d.jurisdiction ILIKE :jurisdiction")
             params["jurisdiction"] = filters.jurisdiction
         if filters.document_id:
             clauses.append("c.document_id = :document_id")

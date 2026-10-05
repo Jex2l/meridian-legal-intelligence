@@ -91,11 +91,38 @@ def test_low_confidence_skips_llm_call_entirely(db_session, workspace_with_indem
     assert result.answer_text == NO_SUPPORT_MESSAGE
 
 
+def test_answer_with_no_citations_at_all_is_rejected(db_session, workspace_with_indemnity_doc):
+    ws = workspace_with_indemnity_doc
+    # A real claim, but the model forgot every citation marker -- zero
+    # citations is not the same as zero INVALID citations, and must not be
+    # treated as "fully grounded" just because nothing was flagged invalid.
+    provider = FakeProvider("The seller must indemnify the buyer for breach-related losses.")
+    result = answer_question(db_session, "What does the indemnification clause say?", ws.id, provider=provider)
+
+    assert result.ungrounded_response_rejected
+    assert result.rejection_reason == "no_citation"
+    assert result.answer_text == NO_SUPPORT_MESSAGE
+
+
+def test_answer_with_unfaithful_claim_is_rejected(db_session, workspace_with_indemnity_doc):
+    ws = workspace_with_indemnity_doc
+    # Cites a real, retrieved passage ([1]), but the claim attached to it
+    # has nothing to do with what that passage actually says -- citation
+    # validation alone would accept this (the index is real), so this is
+    # exactly the gap the faithfulness gate exists to catch.
+    provider = FakeProvider("The moon is made of cheese according to this clause [1].")
+    result = answer_question(db_session, "What does the indemnification clause say?", ws.id, provider=provider)
+
+    assert result.ungrounded_response_rejected
+    assert result.rejection_reason == "unfaithful"
+    assert result.answer_text == NO_SUPPORT_MESSAGE
+
+
 def test_draft_mode_produces_cited_draft(db_session, workspace_with_indemnity_doc):
     ws = workspace_with_indemnity_doc
     provider = FakeProvider(
-        "Draft: Each party shall indemnify the other only for losses from its own gross negligence [1].\n\n"
-        "Reasoning: This mirrors the existing clause [1]."
+        "Draft: The Seller shall indemnify the Buyer against all losses arising from a breach [1].\n\n"
+        "Reasoning: This mirrors the existing indemnification clause [1]."
     )
     result = draft(db_session, "Rewrite the indemnification clause", ws.id, provider=provider)
     assert not result.low_confidence

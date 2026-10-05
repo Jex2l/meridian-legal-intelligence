@@ -132,7 +132,7 @@ def test_spoofed_workspace_id_in_request_body_is_ignored(client, sample_docx, mo
     unknown fields -- the server always resolves workspace_id from the
     verified token, never the request. This test proves the field has zero
     effect, rather than just trusting that it does."""
-    _use_fake_provider(monkeypatch, "Each party indemnifies the other [1].")
+    _use_fake_provider(monkeypatch, "The Seller must indemnify the Buyer for losses arising from a breach [1].")
 
     auth_a = _signup(client, "Firm E", "e@firme.test")
     auth_f = _signup(client, "Firm F", "f@firmf.test")
@@ -155,7 +155,7 @@ def test_spoofed_workspace_id_in_request_body_is_ignored(client, sample_docx, mo
 
 
 def test_cross_workspace_question_never_sees_other_workspaces_document(client, sample_docx, monkeypatch):
-    _use_fake_provider(monkeypatch, "Each party indemnifies the other [1].")
+    _use_fake_provider(monkeypatch, "The Seller must indemnify the Buyer for losses arising from a breach [1].")
 
     auth_a = _signup(client, "Firm G", "g@firmg.test")
     auth_h = _signup(client, "Firm H", "h@firmh.test")
@@ -176,3 +176,23 @@ def test_cross_workspace_question_never_sees_other_workspaces_document(client, s
     assert len(resp_a.json()["citations"]) > 0
     assert resp_h.status_code == 200
     assert resp_h.json()["low_confidence"] is True
+
+
+def test_ask_with_blank_question_is_rejected(client):
+    auth = _signup(client, "Firm I", "i@firmi.test")
+    headers = {"Authorization": f"Bearer {auth['access_token']}"}
+    resp = client.post("/ask", headers=headers, json={"question": "   "})
+    assert resp.status_code == 422
+
+
+def test_upload_rejects_oversized_file(client, monkeypatch):
+    import app.api.routers.documents as documents_module
+
+    monkeypatch.setattr(documents_module, "MAX_UPLOAD_BYTES", 10)  # 10 bytes, trivially exceeded
+    auth = _signup(client, "Firm J", "j@firmj.test")
+    headers = {"Authorization": f"Bearer {auth['access_token']}"}
+    resp = client.post(
+        "/documents/upload", headers=headers,
+        files={"file": ("big.docx", b"x" * 1000, "application/octet-stream")},
+    )
+    assert resp.status_code == 413

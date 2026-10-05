@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
 class SignupRequest(BaseModel):
@@ -56,10 +56,18 @@ class CitationOut(BaseModel):
 
 
 class AskRequest(BaseModel):
-    question: str
-    k: int = 5
+    question: str = Field(min_length=1, max_length=4000)
+    k: int = Field(default=5, ge=1, le=20)
     jurisdiction: str | None = None
     document_id: uuid.UUID | None = None
+
+    @field_validator("question")
+    @classmethod
+    def _question_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("question must not be blank")
+        return v
 
 
 class AskResponse(BaseModel):
@@ -67,14 +75,23 @@ class AskResponse(BaseModel):
     answer_text: str
     low_confidence: bool
     ungrounded_response_rejected: bool
+    rejection_reason: str | None = None
     citations: list[CitationOut]
 
 
 class DraftRequest(BaseModel):
-    task: str
-    k: int = 6
+    task: str = Field(min_length=1, max_length=4000)
+    k: int = Field(default=6, ge=1, le=20)
     jurisdiction: str | None = None
     document_id: uuid.UUID | None = None
+
+    @field_validator("task")
+    @classmethod
+    def _task_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("task must not be blank")
+        return v
 
 
 class DraftResponse(BaseModel):
@@ -82,4 +99,5 @@ class DraftResponse(BaseModel):
     draft_text: str
     low_confidence: bool
     ungrounded_response_rejected: bool
+    rejection_reason: str | None = None
     citations: list[CitationOut]

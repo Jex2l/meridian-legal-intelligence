@@ -47,6 +47,7 @@ def ask(
         answer_text=result.answer_text,
         low_confidence=result.low_confidence,
         ungrounded_response_rejected=result.ungrounded_response_rejected,
+        rejection_reason=result.rejection_reason,
         citations=citations,
     )
 
@@ -71,5 +72,6 @@ def draft(
         draft_text=result.draft_text,
         low_confidence=result.low_confidence,
         ungrounded_response_rejected=result.ungrounded_response_rejected,
+        rejection_reason=result.rejection_reason,
         citations=citations,
     )

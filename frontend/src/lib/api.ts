@@ -44,6 +44,7 @@ export type AskResponse = {
   answer_text: string;
   low_confidence: boolean;
   ungrounded_response_rejected: boolean;
+  rejection_reason: string | null;
   citations: Citation[];
 };
 
@@ -52,6 +53,7 @@ export type DraftResponse = {
   draft_text: string;
   low_confidence: boolean;
   ungrounded_response_rejected: boolean;
+  rejection_reason: string | null;
   citations: Citation[];
 };
 

@@ -1,4 +1,3 @@
-import shutil
 import tempfile
 import uuid
 from pathlib import Path
@@ -13,6 +12,11 @@ from app.ingestion.pipeline import IngestionError, ingest_file
 from app.models.models import Document, User
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB -- the ingestion pipeline (extract -> OCR ->
+# chunk -> embed) runs synchronously inside this request; an unbounded upload could tie
+# up a worker for minutes on a huge scanned PDF. Queue-based ingestion (see README
+# roadmap) would remove this constraint.
 
 
 def _workspace_or_public(user: User):
@@ -31,7 +35,15 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="Only .pdf and .docx files are supported")
 
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        shutil.copyfileobj(file.file, tmp)
+        total = 0
+        while chunk := await file.read(1024 * 1024):
+            total += len(chunk)
+            if total > MAX_UPLOAD_BYTES:
+                tmp_path = Path(tmp.name)
+                tmp.close()
+                tmp_path.unlink(missing_ok=True)
+                raise HTTPException(status_code=413, detail=f"File exceeds {MAX_UPLOAD_BYTES // (1024*1024)}MB limit")
+            tmp.write(chunk)
         tmp_path = Path(tmp.name)
 
     try:
