@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-## Status: Phase 3 complete — grounded generation, citations, drafting mode
+## Status: Phase 4 complete — eval harness and baseline report
 
 ### What's built
 - `docker-compose.yml`: a single Postgres instance (`pgvector/pgvector:pg16`)
@@ -200,7 +200,85 @@ running `ask` against this repo's own demo contract.
   passage's text (a stronger "faithfulness" check) — that's the Phase 4 eval
   harness's job, run offline, not an online gate.
 
-### Next: Phase 4
-Eval harness: a 30+ question/answer gold set, recall@k/precision, citation
-accuracy, and a faithfulness check, with a script that prints a comparison
-table.
+## Phase 4: eval harness and baseline report
+
+### What's built
+- `backend/app/eval/fixtures.py`: a 36-item gold Q/A set (`GOLD_QA`) over a
+  synthetic demo corpus — 6 private contracts (Master Services Agreement,
+  Employment Agreement, Commercial Lease, Software License, Merger
+  Agreement, Mutual NDA; 5 clauses each = 30 items) plus 2 public-corpus
+  case summaries (3 holdings each = 6 items). **The corpus text is original
+  boilerplate written for this project**, not real case law: CourtListener's
+  API now requires an authenticated token this environment doesn't have
+  (confirmed live — anonymous requests get `401`/`403`). `app/ingestion/
+  courtlistener.py`-shaped real ingestion would plug into the same
+  `ingest_file()` pipeline unchanged once a token is supplied; see Known
+  Limitations.
+- `backend/app/eval/seed.py`: idempotently ingests the fixture corpus into
+  a `LexRAG Eval Demo` workspace (private docs) and the public corpus
+  (case summaries) — safe to rerun, skips documents already ingested.
+- `backend/app/eval/metrics.py`: `recall@k`, `precision@k`, MRR for
+  retrieval; `citation_points_to_gold` (does at least one citation resolve
+  to the actual gold passage, not just *a* valid one); `faithfulness_score`
+  — splits a generated answer into cited sentences and scores each against
+  its cited passage with the cross-encoder (reusing the Phase 2 reranker as
+  a cheap entailment proxy, since it doesn't need an extra model or an LLM
+  call).
+- `backend/app/eval/run_eval.py`: seeds the corpus, runs retrieval at k=1
+  and k=5 for "hybrid + rerank" vs. "hybrid, no rerank", and prints a
+  comparison table. With `--generation` (needs `ANTHROPIC_API_KEY`), also
+  runs citation-accuracy and faithfulness over real generated answers.
+- Tests (`tests/test_eval.py`): gold-set size, metric-function correctness
+  on toy data, a retrieval smoke test against the seeded corpus, and both
+  branches (true/false) of `citation_points_to_gold` and
+  `faithfulness_score` against real retrieved chunks.
+
+### How to run it
+
+```bash
+cd backend && source .venv/bin/activate
+python -m app.eval.run_eval              # retrieval metrics only
+python -m app.eval.run_eval --generation # + citation accuracy/faithfulness (needs an API key)
+```
+
+### Baseline results (this demo corpus)
+
+```
+Retrieval metrics (k=1, n=36 gold Q/A pairs)
+config             recall@1  precision@1  MRR
+hybrid + rerank    0.94      0.944        0.94
+hybrid, no rerank  0.94      0.944        0.94
+
+Retrieval metrics (k=5, n=36 gold Q/A pairs)
+config             recall@5  precision@5  MRR
+hybrid + rerank    1.00      0.200        0.97
+hybrid, no rerank  1.00      0.200        0.97
+```
+
+**Honest reading of this result:** reranking shows no lift here, and that's
+a real finding, not a bug — on 36 well-separated clauses with little lexical
+overlap, BM25+dense fusion alone already ranks the right chunk first almost
+every time, so there's nothing for the reranker to fix. The 2/36 recall@1
+misses are genuine retrieval failures worth inspecting. Reranking is
+expected to matter more on a larger, noisier corpus with semantically
+similar distractor clauses (e.g. many contracts' near-identical limitation-
+of-liability clauses) — this harness is what you'd rerun against that
+corpus to check.
+
+### Known limitations (Phase 4)
+- Public case law is synthetic, written for this project, not real
+  CourtListener opinions — see above. A real `courtlistener.py` ingestion
+  module (CourtListener REST v4, bearer token) is a small addition on top
+  of the existing `ingest_file()` pipeline once a token is available, since
+  the pipeline already accepts arbitrary text with `workspace_id=None` for
+  the public corpus.
+- Citation accuracy / faithfulness can't be reported in this environment
+  (no `ANTHROPIC_API_KEY`) — the code path is implemented and unit-tested
+  with `FakeProvider`-equivalent fixtures, just not run against a real
+  model's output here.
+- 36 items is enough to clear the "at least 30" bar but is still small;
+  recall@5 saturating at 1.00 means k=5 isn't discriminating on this corpus
+  size — the k=1 table is the more informative one here.
+
+### Next: Phase 5
+FastAPI endpoints and the Next.js UI with the citation viewer.
