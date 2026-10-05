@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+data/postgres/
+data/uploads/
+data/ocr_tmp/
+node_modules/
+.next/
+*.egg-info/
+.pytest_cache/

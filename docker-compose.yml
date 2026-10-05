@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: lexrag-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lexrag
+      POSTGRES_PASSWORD: lexrag
+      POSTGRES_DB: lexrag
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lexrag -d lexrag"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
