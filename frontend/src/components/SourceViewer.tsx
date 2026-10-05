@@ -37,7 +37,7 @@ export default function SourceViewer({
 
   if (!documentId) {
     return (
-      <div className="flex h-full items-center justify-center bg-white text-sm text-slate-400">
+      <div className="flex h-full items-center justify-center bg-white text-sm text-navy/40">
         Select a document, or click a citation, to view the source.
       </div>
     );
@@ -48,13 +48,13 @@ export default function SourceViewer({
   }
 
   if (!detail) {
-    return <div className="p-6 text-sm text-slate-400">Loading...</div>;
+    return <div className="p-6 text-sm text-navy/40">Loading...</div>;
   }
 
   return (
     <div className="h-full overflow-y-auto bg-white p-6">
-      <h2 className="mb-1 text-lg font-semibold text-slate-900">{detail.filename}</h2>
-      {detail.jurisdiction && <p className="mb-4 text-xs text-slate-400">Jurisdiction: {detail.jurisdiction}</p>}
+      <h2 className="font-serif-brand mb-1 text-lg font-semibold text-navy">{detail.filename}</h2>
+      {detail.jurisdiction && <p className="mb-4 text-xs text-navy/40">Jurisdiction: {detail.jurisdiction}</p>}
       <div className="space-y-4">
         {detail.chunks.map((chunk) => (
           <div
@@ -62,19 +62,19 @@ export default function SourceViewer({
             ref={(el) => {
               chunkRefs.current[chunk.id] = el;
             }}
-            className={`rounded-md border p-3 text-sm transition-colors ${
+            className={`rounded-sm border p-3 text-sm transition-colors ${
               chunk.id === highlightChunkId
-                ? "border-indigo-400 bg-indigo-50"
-                : "border-slate-200 bg-white"
+                ? "border-gold bg-gold/10"
+                : "border-navy/10 bg-white"
             }`}
           >
             {chunk.section_heading && (
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-navy/50">
                 {chunk.section_heading}
                 {chunk.page_number ? ` · page ${chunk.page_number}` : ""}
               </p>
             )}
-            <p className="whitespace-pre-wrap text-slate-700">{chunk.text}</p>
+            <p className="whitespace-pre-wrap text-navy/80">{chunk.text}</p>
           </div>
         ))}
       </div>

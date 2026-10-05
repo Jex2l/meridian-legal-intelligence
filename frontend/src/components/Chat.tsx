@@ -71,28 +71,28 @@ export default function Chat({
 
   return (
     <div className="flex h-full flex-col bg-white">
-      <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+      <div className="border-b border-gold/30 bg-gold/10 px-4 py-2 text-xs text-navy/80">
         Not legal advice. All output must be reviewed by a licensed attorney before use.
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-navy/40">
             Ask a question about your documents, or switch to Draft mode to request a first draft.
           </p>
         )}
         {messages.map((m, i) => (
           <div key={i} className={m.role === "user" ? "text-right" : "text-left"}>
             <div
-              className={`inline-block max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                m.role === "user" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800"
+              className={`inline-block max-w-[85%] rounded-sm px-3 py-2 text-sm ${
+                m.role === "user" ? "bg-navy text-white" : "bg-navy-pale text-navy"
               }`}
             >
               {m.error ? (
                 <span className="text-red-600">Error: {m.error}</span>
               ) : m.role === "assistant" && m.mode === "draft" && !m.lowConfidence && !m.rejected ? (
                 <div>
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Draft</p>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gold">Draft</p>
                   <CitedText text={m.text} citations={m.citations} onCitationClick={onCitationClick} />
                 </div>
               ) : (
@@ -106,20 +106,20 @@ export default function Chat({
             </div>
           </div>
         ))}
-        {loading && <p className="text-sm text-slate-400">Thinking...</p>}
+        {loading && <p className="text-sm text-navy/40">Thinking...</p>}
       </div>
 
-      <div className="border-t border-slate-200 p-4">
+      <div className="border-t border-navy/10 p-4">
         <div className="mb-2 flex gap-2 text-xs">
           <button
             onClick={() => setMode("ask")}
-            className={`rounded-md px-2 py-1 ${mode === "ask" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`rounded-sm px-2 py-1 transition ${mode === "ask" ? "bg-navy text-white" : "bg-navy-pale text-navy/60"}`}
           >
             Ask
           </button>
           <button
             onClick={() => setMode("draft")}
-            className={`rounded-md px-2 py-1 ${mode === "draft" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`rounded-sm px-2 py-1 transition ${mode === "draft" ? "bg-navy text-white" : "bg-navy-pale text-navy/60"}`}
           >
             Draft
           </button>
@@ -138,12 +138,12 @@ export default function Chat({
               mode === "ask" ? "What does the indemnification clause say?" : "Rewrite the indemnity clause to favor the buyer"
             }
             rows={2}
-            className="flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="flex-1 resize-none rounded-sm border border-navy/20 px-3 py-2 text-sm focus:border-gold focus:outline-none"
           />
           <button
             onClick={send}
             disabled={loading}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-sm bg-navy px-4 py-2 text-sm font-medium text-white transition hover:bg-navy-light disabled:opacity-50"
           >
             Send
           </button>

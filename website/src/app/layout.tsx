@@ -14,14 +14,15 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Meridian Legal Intelligence — Client Portal",
-  description: "Grounded legal research and drafting, verified before delivery.",
+  title: "Meridian Legal Intelligence",
+  description:
+    "AI-powered legal research and drafting, grounded in your documents and public case law — every answer cited, every citation verified.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-white text-foreground">{children}</body>
+      <body className="min-h-full flex flex-col bg-background text-foreground">{children}</body>
     </html>
   );
 }

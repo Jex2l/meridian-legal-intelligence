@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { DocumentOut } from "@/lib/api";
+import Logo from "./Logo";
 
 export default function Sidebar({
   token,
@@ -42,13 +43,17 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="flex h-full w-72 flex-col border-r border-slate-200 bg-slate-50">
-      <div className="border-b border-slate-200 p-4">
-        <p className="text-xs uppercase tracking-wide text-slate-400">Workspace</p>
-        <p className="truncate text-sm font-semibold text-slate-900">{workspaceName}</p>
+    <aside className="flex h-full w-72 flex-col border-r border-navy/10 bg-navy-pale">
+      <div className="border-b border-navy/10 p-4">
+        <Logo className="scale-90" />
       </div>
 
-      <div className="border-b border-slate-200 p-4">
+      <div className="border-b border-navy/10 p-4">
+        <p className="text-xs uppercase tracking-wide text-navy/40">Workspace</p>
+        <p className="truncate text-sm font-semibold text-navy">{workspaceName}</p>
+      </div>
+
+      <div className="border-b border-navy/10 p-4">
         <input
           ref={fileInput}
           type="file"
@@ -59,7 +64,7 @@ export default function Sidebar({
         />
         <label
           htmlFor="file-upload"
-          className="block w-full cursor-pointer rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-center text-sm text-slate-600 hover:bg-slate-100"
+          className="block w-full cursor-pointer rounded-sm border border-dashed border-navy/25 bg-white px-3 py-2 text-center text-sm text-navy/70 transition hover:border-gold hover:text-navy"
         >
           {uploading ? "Uploading..." : "+ Upload PDF / DOCX"}
         </label>
@@ -67,17 +72,17 @@ export default function Sidebar({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <p className="px-2 pb-1 pt-2 text-xs uppercase tracking-wide text-slate-400">Documents</p>
+        <p className="px-2 pb-1 pt-2 text-xs uppercase tracking-wide text-navy/40">Documents</p>
         {documents.length === 0 && (
-          <p className="px-2 py-4 text-sm text-slate-400">No documents yet. Upload one to get started.</p>
+          <p className="px-2 py-4 text-sm text-navy/40">No documents yet. Upload one to get started.</p>
         )}
         <ul className="space-y-1">
           {documents.map((doc) => (
             <li key={doc.id}>
               <button
                 onClick={() => onSelectDocument(doc.id)}
-                className={`block w-full truncate rounded-md px-2 py-2 text-left text-sm ${
-                  selectedDocumentId === doc.id ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                className={`block w-full truncate rounded-sm px-2 py-2 text-left text-sm transition ${
+                  selectedDocumentId === doc.id ? "bg-navy text-white" : "text-navy/80 hover:bg-white"
                 }`}
                 title={doc.filename}
               >
@@ -89,8 +94,8 @@ export default function Sidebar({
         </ul>
       </div>
 
-      <div className="border-t border-slate-200 p-4">
-        <button onClick={onLogout} className="text-xs text-slate-400 hover:text-slate-600">
+      <div className="border-t border-navy/10 p-4">
+        <button onClick={onLogout} className="text-xs text-navy/40 hover:text-navy">
           Log out
         </button>
       </div>

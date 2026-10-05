@@ -27,7 +27,7 @@ export default function CitedText({
           <button
             key={i}
             onClick={() => onCitationClick(citation)}
-            className="mx-0.5 rounded bg-indigo-100 px-1 text-xs font-medium text-indigo-700 hover:bg-indigo-200"
+            className="mx-0.5 rounded-sm bg-gold/20 px-1 text-xs font-medium text-navy hover:bg-gold/35"
             title={`${citation.document_filename} — ${citation.section_heading ?? "unlabeled section"}`}
           >
             {part}

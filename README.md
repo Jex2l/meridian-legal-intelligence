@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-**Status: MVP complete (Phases 1–11).** The build log below (one section per
+**Status: MVP complete, branded as Meridian Legal Intelligence (Phases 1–12).** The build log below (one section per
 phase) is kept as the detailed record of what was built, why, and what's
 verified at each step. This top section is the map: architecture, how to
 run everything, and where things stand overall.
@@ -63,11 +63,17 @@ cp ../.env.example .env   # add ANTHROPIC_API_KEY, or run `ollama serve` locally
 python -m pytest -q       # 32 tests, all against the live Postgres container
 uvicorn app.api.main:app --reload --port 8000
 
-# 3. frontend (separate terminal)
+# 3. client app (separate terminal)
 cd frontend
 cp .env.local.example .env.local
 npm install
 npm run dev   # http://localhost:3000
+
+# 4. marketing site (separate terminal, optional)
+cd website
+cp .env.local.example .env.local
+npm install
+npm run dev -- --port 3001   # http://localhost:3001
 ```
 
 Try it via CLI without the UI:
@@ -494,7 +500,9 @@ LexRAG/
 │       ├── core/            # config, db, security
 │       └── models/          # SQLAlchemy models
 │   └── tests/               # one file per package above, all against live Postgres
-└── frontend/                # Next.js: chat + source viewer split view
+├── frontend/                # Next.js: client portal — chat + source viewer split view
+├── website/                 # Next.js: public marketing site (Meridian Legal Intelligence)
+└── samples/                 # sample document for manual testing
 ```
 
 ### Known limitations, all in one place
@@ -888,3 +896,73 @@ case with two citation markers for the same index in one sentence
   model (including Claude via `ANTHROPIC_API_KEY`) may format citations
   differently and should be re-validated against the eval harness rather
   than assumed to inherit this result.
+
+## Phase 12: company branding — Meridian Legal Intelligence
+
+The underlying product (ingestion, retrieval, generation, eval, API) is
+unchanged in this phase. What's added is the company identity around it,
+for anyone starting an organization on top of this platform.
+
+### Brand
+**Meridian Legal Intelligence** ("Meridian Legal"). Navy (`#0B1F3A`) and
+gold (`#B68A35`) palette, `Playfair Display` serif for headings paired
+with `Inter` for body text — a deliberate "established legal consultancy"
+look, distinct from the generic slate/indigo SaaS styling used through
+Phase 11. The name and positioning ("we build the tools your lawyers use,
+we don't practice law") are chosen to stay consistent with the product's
+own "not legal advice" disclaimer, rather than implying the company itself
+gives legal advice.
+
+### What's built
+- **`website/`** — a new Next.js marketing site (hero, services,
+  how-it-works, trust & security, about, contact/demo-request form,
+  footer). Standalone from `frontend/`, since a company's public site and
+  its authenticated client app are different surfaces with different
+  concerns (SEO/marketing vs. a logged-in product). "Client Login" links
+  out to `frontend/` via `NEXT_PUBLIC_APP_URL`.
+- **`frontend/` rebrand** — `AuthForm.tsx` redesigned as a split panel
+  (brand/trust messaging on the left, the actual form on the right,
+  matching the marketing site's login-page convention) instead of a
+  generic centered card. `Sidebar.tsx`, `Chat.tsx`, `CitedText.tsx`, and
+  `SourceViewer.tsx` recolored from slate/indigo to the navy/gold palette,
+  including a `Logo.tsx` component shared in spirit with the website's
+  (duplicated rather than imported across the two separate Next.js apps —
+  see Known Limitations).
+- Both apps' `layout.tsx`/`globals.css` updated with the same CSS custom
+  properties (`--navy`, `--gold`, `--font-serif`) so the two apps'
+  branding can't silently drift apart from a single shared source of truth
+  if one is edited without the other.
+
+### How to run it
+
+```bash
+cd website && cp .env.local.example .env.local && npm install && npm run dev -- --port 3001
+```
+
+Open `http://localhost:3001` for the marketing site; "Client Login" and
+"Already a client?" links go to `frontend/` on `:3000` (set
+`NEXT_PUBLIC_APP_URL` if that's running elsewhere). The `frontend/` app
+itself runs exactly as documented in Phase 5, just rebranded.
+
+### Verified live
+Both sites screenshotted end-to-end in the browser: marketing site hero
+through footer, mobile viewport (375px, hamburger nav), the rebranded
+split-panel login, a real signup, document upload, and a live Ollama-
+generated answer with a gold citation marker that correctly scrolls to
+and highlights the source passage — confirming the rebrand didn't break
+any of the functional work from Phases 1–11. Both apps build clean with
+`npm run build` (no TypeScript errors).
+
+### Known limitations (Phase 12)
+- `Logo.tsx` is duplicated between `website/` and `frontend/` rather than
+  shared from one package, since they're independent Next.js apps with
+  their own `node_modules` and no monorepo tooling (Turborepo/Nx) set up
+  between them. Fine at this size; worth extracting to a shared package if
+  more cross-app UI accumulates.
+- The contact/demo-request form on the marketing site is front-end only —
+  it shows a confirmation state but doesn't send anywhere (no email
+  service or CRM wired up). Flagged in the form's own code as a stub, not
+  silently fake.
+- No real company registration, domain, trademark clearance, or legal
+  entity — "Meridian Legal Intelligence" is a suggested brand for this
+  codebase, not a cleared or registered name.

@@ -67,7 +67,7 @@ export default function Home() {
         onLogout={handleLogout}
       />
       <main className="flex min-w-0 flex-1">
-        <div className="w-1/2 border-r border-slate-200">
+        <div className="w-1/2 border-r border-navy/10">
           <Chat token={session.access_token} onCitationClick={handleCitationClick} />
         </div>
         <div className="w-1/2">
