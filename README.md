@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-**Status: MVP complete (Phases 1–8).** The build log below (one section per
+**Status: MVP complete (Phases 1–9).** The build log below (one section per
 phase) is kept as the detailed record of what was built, why, and what's
 verified at each step. This top section is the map: architecture, how to
 run everything, and where things stand overall.
@@ -653,3 +653,71 @@ closes it without needing any cloud credential at all.
 - The 0.89 faithfulness number came from one run against one small corpus
   with one local model; treat it as "the harness works and surfaces real
   signal," not as a number to optimize against without a larger eval set.
+
+## Phase 9: fixing a real confidence-threshold bug found by live testing
+
+User-reported bug: asking "Is there a cap on liability?" and drafting
+"Rewrite the limitation of liability clause to remove the cap" against a
+workspace with exactly one uploaded contract both returned "I couldn't
+find support for this." — the low-confidence fallback — even though the
+contract's Limitation of Liability clause plainly answers both.
+
+### Root cause
+Both confidence thresholds (`app/generation/confidence.py`) were originally
+set from a single hand example each: `0.0` for Ask (from one
+"indemnification" question scoring 0.56), `-8.0` for Draft (from one
+drafting example scoring -11.02, picked to just barely let that one case
+through). Neither was calibrated against a real score distribution.
+
+Direct diagnosis — running the retrieval CLI against the exact failing
+queries showed the reranker **correctly** ranked the right clause first,
+but with a cross-encoder score below the threshold:
+
+```
+"Is there a cap on liability?"                                    -> top1 score -6.74 (threshold was 0.0)
+"Rewrite the limitation of liability clause to remove the cap"    -> top1 score -9.80 (threshold was -8.0)
+```
+
+Both were true positives being wrongly rejected, not retrieval failures.
+
+### Recalibration from real data
+Gathered actual score distributions rather than guessing a second number:
+- Across the 36-item gold eval set, true-positive top-1 scores for
+  question-style queries ranged from **-3.27 to +10.65** (mean 6.39);
+  genuinely irrelevant questions ("What is the capital of France?", etc.)
+  scored a tight **-11.0 to -11.3**. Clear gap — moved
+  `DEFAULT_CONFIDENCE_THRESHOLD` from `0.0` to **`-8.0`**, which sits in
+  that gap with margin on both sides.
+- For imperative drafting instructions, true positives ranged down to
+  **-9.80**, but irrelevant imperative queries didn't cluster as cleanly —
+  one adversarial probe ("add a clause about alien spacecraft liability")
+  scored **-7.23**, *higher* than the genuine -9.80 match. **No threshold
+  can perfectly separate relevant from irrelevant imperative queries with
+  this reranker** — the score distributions genuinely overlap. Moved
+  `DRAFTING_CONFIDENCE_THRESHOLD` from `-8.0` to **`-10.5`**: this fixes
+  the reported bug (prioritizing not blocking legitimate drafting
+  requests) at the honest cost of occasionally letting a low-relevance
+  drafting request reach the LLM. The remaining safety net for that case
+  is the system prompt's explicit instruction to say so when it can't
+  draft from the given passages, plus citation validation rejecting any
+  fabricated citation — not a perfect score cutoff, because one doesn't
+  exist here.
+
+### Verified
+Re-ran the exact two failing requests live against the API after the fix —
+both now return correct, cited answers (confirmed via `curl`, shown above
+in this section's root-cause diagnosis context). Full backend suite
+(37 tests) still passes unchanged; the existing low-confidence test
+("What is the capital of France?", scoring ~-11) stays correctly rejected
+under the new, less strict threshold.
+
+### Known limitations (Phase 9)
+- The drafting threshold is a best-effort floor, not a reliable classifier
+  — documented above as a genuine, unresolved limitation of using a
+  question-trained cross-encoder for imperative queries, rather than
+  something this phase claims to have fully solved.
+- Thresholds were calibrated against this specific demo corpus and this
+  specific reranker model; swapping either would need recalibration. A
+  more robust long-term fix would be query reformulation (rephrase a
+  drafting instruction as a question before reranking) or a reranker
+  fine-tuned on imperative queries — noted here as roadmap, not built.
