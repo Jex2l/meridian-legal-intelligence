@@ -104,3 +104,50 @@ def test_ask_relevant_question_without_api_key_returns_503(client, sample_docx):
 
     resp = client.post("/ask", headers=headers, json={"question": "What does the indemnification clause say?"})
     assert resp.status_code == 503
+
+
+def test_spoofed_workspace_id_in_request_body_is_ignored(client, sample_docx):
+    """AskRequest/DraftRequest have no workspace_id field, so even if a
+    client stuffs one into the JSON body, FastAPI/Pydantic silently drops
+    unknown fields -- the server always resolves workspace_id from the
+    verified token, never the request. This test proves the field has zero
+    effect, rather than just trusting that it does."""
+    auth_a = _signup(client, "Firm E", "e@firme.test")
+    auth_f = _signup(client, "Firm F", "f@firmf.test")
+    headers_a = {"Authorization": f"Bearer {auth_a['access_token']}"}
+    with open(sample_docx, "rb") as f:
+        client.post("/documents/upload", headers=headers_a, files={"file": ("contract.docx", f)})
+
+    # Ask as Firm F (no documents of its own), spoofing Firm A's workspace_id
+    # in the body. If the field were honored, this would behave as Firm A's
+    # question (relevant -> 503 since there's no API key); it must instead
+    # behave as Firm F's question (nothing relevant -> low_confidence fallback).
+    headers_f = {"Authorization": f"Bearer {auth_f['access_token']}"}
+    resp = client.post(
+        "/ask",
+        headers=headers_f,
+        json={"question": "What does the indemnification clause say?", "workspace_id": auth_a["workspace_id"]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["low_confidence"] is True
+
+
+def test_cross_workspace_question_never_sees_other_workspaces_document(client, sample_docx):
+    auth_a = _signup(client, "Firm G", "g@firmg.test")
+    auth_h = _signup(client, "Firm H", "h@firmh.test")
+    headers_a = {"Authorization": f"Bearer {auth_a['access_token']}"}
+    headers_h = {"Authorization": f"Bearer {auth_h['access_token']}"}
+
+    with open(sample_docx, "rb") as f:
+        client.post("/documents/upload", headers=headers_a, files={"file": ("contract.docx", f)})
+
+    # Firm H has no documents at all; the same question that would be
+    # answerable (relevant -> 503, no API key) for Firm A must fall back to
+    # low-confidence for Firm H, proving Firm A's chunks never entered
+    # Firm H's retrieval candidate set.
+    resp_a = client.post("/ask", headers=headers_a, json={"question": "What does the indemnification clause say?"})
+    resp_h = client.post("/ask", headers=headers_h, json={"question": "What does the indemnification clause say?"})
+
+    assert resp_a.status_code == 503  # relevant retrieval found -> tried to call the LLM
+    assert resp_h.status_code == 200
+    assert resp_h.json()["low_confidence"] is True

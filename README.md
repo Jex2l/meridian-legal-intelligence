@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-## Status: Phase 5 complete — FastAPI backend + Next.js UI with citation viewer
+## Status: Phase 6 complete — drafting mode + access-control audit
 
 ### What's built
 - `docker-compose.yml`: a single Postgres instance (`pgvector/pgvector:pg16`)
@@ -345,7 +345,61 @@ document from the sidebar.
   PDF/DOCX page — good enough to locate and read a cited passage, but not a
   pixel-accurate "document viewer."
 
-### Next: Phase 6
-Drafting mode (already built in Phase 3's `app/generation/draft.py` and
-wired into `/draft` here) plus a closer look at per-workspace access
-control end-to-end across every endpoint.
+## Phase 6: drafting mode + access-control audit
+
+Drafting mode itself was built in Phase 3 (`app/generation/draft.py`) and
+wired into the API/UI in Phase 5 — this phase verified it live and audited
+isolation end-to-end rather than adding new product surface.
+
+### Verified live
+Switched the UI to Draft mode and sent "Rewrite the indemnification clause
+to favor the buyer": against an empty workspace it correctly returned the
+low-confidence fallback; after uploading the demo contract, retrieval found
+the clause and the request reached the LLM call, surfacing the same clean
+503 (no API key) as `/ask`. Confirms the confidence gate and the swappable-
+provider error path both work identically for drafting as for Q&A.
+
+### Access-control audit: every layer where isolation is enforced
+1. **Ingestion** (`app/ingestion/pipeline.py`) — `ingest_file()` raises
+   `IngestionError` if an uploaded document is missing `workspace_id` or
+   `owner_user_id`; only the public-corpus path may omit them.
+2. **Schema** (`app/models/models.py`) — `workspace_id` is denormalized onto
+   `Chunk` itself (not just `Document`), so every retrieval query filters
+   chunks directly without a join.
+3. **Retrieval** (`app/retrieval/search.py`) — both the full-text and the
+   vector query apply `WHERE (workspace_id = :ws OR workspace_id IS NULL)`
+   inside their own SQL, so a chunk from another workspace is never fetched
+   from Postgres, let alone reaches the LLM. This is the mechanism the
+   original hard constraint asked for, built in Phase 2.
+4. **Generation** (`app/generation/answer.py`, `draft.py`) — take
+   `workspace_id` as a plain parameter; they never see a request object to
+   trust, only what the caller (API or CLI) passes in.
+5. **API** (`app/api/deps.py`, `app/api/routers/*.py`) — `workspace_id` is
+   resolved from the HMAC-verified token (`current_user.workspace_id`),
+   never read from the request body. `AskRequest`/`DraftRequest` have no
+   `workspace_id` field at all, and Pydantic silently drops unknown JSON
+   fields by default — so even a client that stuffs a `workspace_id` into
+   the body has zero effect, which `test_spoofed_workspace_id_in_request_body_is_ignored`
+   proves directly rather than assuming. Document endpoints return `404`
+   (not `403`) for a cross-workspace document so the API never confirms
+   another workspace's document even exists.
+6. **Tests** — in addition to the retrieval-layer isolation test from Phase
+   2, `tests/test_api.py` now has
+   `test_cross_workspace_question_never_sees_other_workspaces_document`
+   (Firm H, with zero documents, gets a low-confidence fallback to a
+   question that *would* reach the LLM for Firm A, which owns the matching
+   document) and the spoofed-body test above.
+
+### Known limitations (Phase 6)
+- This audit covers the paths that exist today (ask/draft/documents). Any
+  new endpoint added later must resolve `workspace_id` from
+  `current_user`, not from its request schema — there's no automated check
+  enforcing that convention (e.g. a linter rule), just this documented
+  pattern and the tests above as a regression guard.
+- Auth itself (email-only, no password) remains the weakest link in the
+  chain, as noted in Phase 5 — it determines *who* `current_user` is, which
+  everything above then trusts.
+
+### Next: Phase 7
+README wrap-up: architecture diagram, known limitations rollup, and
+roadmap.
