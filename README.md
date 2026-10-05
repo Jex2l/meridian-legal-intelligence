@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-## Status: Phase 2 complete — hybrid retrieval, reranking, query CLI
+## Status: Phase 3 complete — grounded generation, citations, drafting mode
 
 ### What's built
 - `docker-compose.yml`: a single Postgres instance (`pgvector/pgvector:pg16`)
@@ -141,6 +141,66 @@ python -m app.retrieval.cli query <workspace_id> "query" --jurisdiction "New Yor
 - No eval numbers yet for recall@k / precision / reranker lift — that's
   Phase 4.
 
-### Next: Phase 3
-Grounded answer generation with inline citations and the low-confidence
-fallback.
+## Phase 3: grounded generation, citation validation, drafting mode
+
+### What's built
+- `backend/app/generation/provider.py`: `LLMProvider` interface so the model
+  can be swapped. `AnthropicProvider` calls Claude via the `anthropic` SDK;
+  `FakeProvider` is a deterministic stand-in used by tests (no network/API
+  key needed to test the pipeline logic itself).
+- `backend/app/generation/prompts.py`: system/user prompts that require
+  every claim to carry a `[n]` citation marker and instruct the model to
+  answer exactly `"I couldn't find support for this."` when the passages
+  don't support an answer. A separate drafting prompt asks for a draft plus
+  a cited "Reasoning" section.
+- `backend/app/generation/citations.py`: parses `[n]` markers out of the
+  model's response and validates each one resolves to an actually-retrieved
+  chunk. This is the enforcement mechanism for "never invent a citation" —
+  it's a check against the retrieved set, not a trust in the prompt.
+- `backend/app/generation/confidence.py`: low-confidence gate based on the
+  top reranked chunk's cross-encoder score. If retrieval confidence is low,
+  the fallback message is returned **without calling the LLM at all** (saves
+  cost and avoids giving the model a chance to make something up from weak
+  context). Q&A uses a stricter threshold (`0.0`) than drafting (`-8.0`),
+  because the cross-encoder is trained on question-style queries and scores
+  an imperative drafting instruction lower than an equivalent question even
+  against a genuinely relevant passage — confirmed empirically in
+  `tests/test_generation.py`.
+- `backend/app/generation/answer.py` / `draft.py`: orchestrate retrieve →
+  prompt → generate → validate citations → reject if any citation is
+  invented (falls back to the same "couldn't find support" message rather
+  than returning a partially-trustworthy answer).
+- `backend/app/generation/cli.py`: `ask` and `draft` subcommands.
+- Tests (`tests/test_generation.py`, using `FakeProvider`): a valid-citation
+  answer is accepted; an invented citation (`[99]` when at most 5 passages
+  were retrieved) is rejected and replaced with the fallback; an unrelated
+  question never reaches the LLM at all (asserted via a provider that raises
+  if called); drafting produces a cited draft + reasoning section.
+
+### How to run it
+
+```bash
+cd backend && source .venv/bin/activate
+# add a real key to backend/.env (ANTHROPIC_API_KEY=...) to actually call Claude
+
+python -m app.generation.cli ask <workspace_id> "What does the indemnification clause say?"
+python -m app.generation.cli draft <workspace_id> "Rewrite the indemnity clause to favor the buyer"
+```
+
+Without an API key configured, both commands fail with a clear
+`ANTHROPIC_API_KEY is not set` error rather than a stack trace — verified by
+running `ask` against this repo's own demo contract.
+
+### Known limitations (Phase 3)
+- The confidence thresholds are tuned by hand against this small demo
+  corpus, not against the eval set yet — Phase 4 should revisit them with
+  real recall/precision numbers.
+- Citation validation checks that a cited passage number exists; it does
+  not yet verify the specific sentence is actually supported by that
+  passage's text (a stronger "faithfulness" check) — that's the Phase 4 eval
+  harness's job, run offline, not an online gate.
+
+### Next: Phase 4
+Eval harness: a 30+ question/answer gold set, recall@k/precision, citation
+accuracy, and a faithfulness check, with a script that prints a comparison
+table.
