@@ -30,10 +30,19 @@ def client():
 
 def _signup(client, workspace_name, email, name="Test User"):
     resp = client.post(
-        "/auth/signup", json={"workspace_name": workspace_name, "email": email, "name": name}
+        "/auth/signup",
+        json={"workspace_name": workspace_name, "email": email, "name": name, "accepted_terms": True},
     )
     assert resp.status_code == 200, resp.text
     return resp.json()
+
+
+def test_signup_without_accepting_terms_is_rejected(client):
+    resp = client.post(
+        "/auth/signup",
+        json={"workspace_name": "Firm K", "email": "k@firmk.test", "name": "K", "accepted_terms": False},
+    )
+    assert resp.status_code == 422
 
 
 def test_signup_then_login(client):

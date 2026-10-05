@@ -92,10 +92,10 @@ async function request<T>(
 }
 
 export const api = {
-  signup: (workspace_name: string, email: string, name: string) =>
+  signup: (workspace_name: string, email: string, name: string, accepted_terms: boolean) =>
     request<AuthSession>("/auth/signup", {
       method: "POST",
-      body: JSON.stringify({ workspace_name, email, name }),
+      body: JSON.stringify({ workspace_name, email, name, accepted_terms }),
     }),
 
   login: (email: string) =>

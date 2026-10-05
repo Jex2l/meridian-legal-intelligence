@@ -59,6 +59,15 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
+    # Clickwrap acceptance record. Recorded server-side (not just a UI
+    # checkbox, which a direct API call could bypass) so there is an
+    # auditable timestamp of acceptance -- what actually makes a clickwrap
+    # agreement defensible is evidence it was accepted, not just that a
+    # checkbox existed in the UI. terms_version lets a future Terms update
+    # be distinguished from what this user actually agreed to.
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    terms_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     workspace: Mapped["Workspace"] = relationship(back_populates="users")
 
 

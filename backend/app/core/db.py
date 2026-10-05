@@ -27,6 +27,7 @@ def init_db() -> None:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(bind=engine)
     _ensure_search_indexes()
+    _ensure_user_columns()
 
 
 def _ensure_search_indexes() -> None:
@@ -58,3 +59,14 @@ def _ensure_search_indexes() -> None:
                 """
             )
         )
+
+
+def _ensure_user_columns() -> None:
+    """Add the clickwrap-acceptance columns to an existing users table.
+    Same idempotent-raw-SQL pattern as _ensure_search_indexes() -- see its
+    docstring for why this isn't an Alembic migration."""
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_version VARCHAR(32)"))

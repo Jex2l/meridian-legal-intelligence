@@ -12,6 +12,7 @@ export default function AuthForm({ onAuthenticated }: { onAuthenticated: (s: Aut
   const [workspaceName, setWorkspaceName] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +22,7 @@ export default function AuthForm({ onAuthenticated }: { onAuthenticated: (s: Aut
     setLoading(true);
     try {
       const session =
-        mode === "signup" ? await api.signup(workspaceName, email, name) : await api.login(email);
+        mode === "signup" ? await api.signup(workspaceName, email, name, acceptedTerms) : await api.login(email);
       onAuthenticated(session);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
@@ -135,11 +136,38 @@ export default function AuthForm({ onAuthenticated }: { onAuthenticated: (s: Aut
               placeholder="jordan@yourfirm.com"
             />
 
+            {mode === "signup" && (
+              <label className="mb-5 flex items-start gap-2.5 text-xs text-navy/70">
+                <input
+                  required
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 accent-navy"
+                />
+                <span>
+                  I agree to the{" "}
+                  <a href={`${MARKETING_URL}/terms`} target="_blank" rel="noopener noreferrer" className="font-medium text-navy underline">
+                    Terms of Service
+                  </a>
+                  ,{" "}
+                  <a href={`${MARKETING_URL}/privacy`} target="_blank" rel="noopener noreferrer" className="font-medium text-navy underline">
+                    Privacy Policy
+                  </a>
+                  , and{" "}
+                  <a href={`${MARKETING_URL}/disclaimer`} target="_blank" rel="noopener noreferrer" className="font-medium text-navy underline">
+                    AI Output Disclaimer
+                  </a>
+                  .
+                </span>
+              </label>
+            )}
+
             {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (mode === "signup" && !acceptedTerms)}
               className="w-full rounded-sm bg-navy px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-light disabled:opacity-50"
             >
               {loading ? "Working..." : mode === "signup" ? "Create workspace" : "Log in"}

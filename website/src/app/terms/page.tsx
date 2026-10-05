@@ -22,6 +22,9 @@ export default function TermsPage() {
           workspace, logging in, or otherwise using the Service, you agree to be bound by these
           Terms. If you are using the Service on behalf of an organization, you represent that you
           have authority to bind that organization, and &quot;you&quot; refers to that organization.
+          Creating a workspace requires affirmatively checking a box confirming your acceptance of
+          these Terms, the Privacy Policy, and the AI Output Disclaimer; that acceptance, with its
+          timestamp and the version of these Terms accepted, is recorded on your account.
         </p>
       </section>
 
@@ -76,7 +79,11 @@ export default function TermsPage() {
           does not violate any third party&apos;s rights, confidentiality obligations (including
           attorney-client privilege or protective orders), or applicable law. You are solely
           responsible for Your Content and for ensuring you have appropriate authorization — including
-          client consent where required — before uploading client or matter materials.
+          client consent where required — before uploading client or matter materials. See our{" "}
+          <a href="/dmca" className="font-medium text-navy underline">
+            Copyright / DMCA Policy
+          </a>{" "}
+          for how we handle infringement claims.
         </p>
       </section>
 

@@ -69,7 +69,14 @@ export default function PrivacyPage() {
 
       <section>
         <H2>4. How Information Is Shared</H2>
-        <p className="mt-3">We share information only as follows:</p>
+        <p className="mt-3">
+          We share information only as follows. A full, current list of subprocessors is
+          maintained at{" "}
+          <a href="/subprocessors" className="font-medium text-navy underline">
+            /subprocessors
+          </a>
+          .
+        </p>
         <ul className="mt-3 list-disc space-y-2 pl-6">
           <li>
             <strong>AI generation providers.</strong> To produce an answer or draft, relevant

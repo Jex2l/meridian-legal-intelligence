@@ -8,6 +8,17 @@ class SignupRequest(BaseModel):
     workspace_name: str
     email: str
     name: str
+    accepted_terms: bool = Field(
+        description="Must be true -- explicit acceptance of the Terms of Service, "
+        "Privacy Policy, and AI Output Disclaimer, recorded server-side with a timestamp."
+    )
+
+    @field_validator("accepted_terms")
+    @classmethod
+    def _must_accept(cls, v: bool) -> bool:
+        if not v:
+            raise ValueError("You must accept the Terms of Service and Privacy Policy to create a workspace.")
+        return v
 
 
 class LoginRequest(BaseModel):

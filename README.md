@@ -197,7 +197,22 @@ distribute. This covers the source code only: it does not grant any right
 to the "Meridian Legal Intelligence" name, logo, or brand, and it does not
 make the Terms/Privacy/Disclaimer pages in `website/` into usable legal
 documents for your own organization any more than copying them would —
-see the known limitations above.
+see the known limitations above. Third-party dependency licenses are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) (not exhaustive — see that
+file before commercial distribution).
+
+## Compliance & reporting
+
+- **Security vulnerabilities:** see [SECURITY.md](SECURITY.md) — please
+  report privately rather than opening a public issue, especially anything
+  touching workspace isolation.
+- **Code of conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- **Subprocessors, copyright/DMCA, and clickwrap consent:** the marketing
+  site has dedicated pages (`/subprocessors`, `/dmca`) alongside
+  `/terms`, `/privacy`, and `/disclaimer`. Workspace creation requires an
+  explicit, server-recorded acceptance of these documents (checkbox +
+  timestamp + version, enforced in the API, not just the UI — see
+  `backend/app/api/routers/auth.py`).
 
 ---
 

@@ -35,6 +35,8 @@ export default function Footer() {
                 <li><a href="/disclaimer" className="hover:text-white">AI Output Disclaimer</a></li>
                 <li><a href="/privacy" className="hover:text-white">Privacy Policy</a></li>
                 <li><a href="/terms" className="hover:text-white">Terms of Service</a></li>
+                <li><a href="/subprocessors" className="hover:text-white">Subprocessors</a></li>
+                <li><a href="/dmca" className="hover:text-white">Copyright / DMCA</a></li>
               </ul>
             </div>
           </div>
