@@ -63,12 +63,27 @@ class OllamaProvider(LLMProvider):
                 timeout=120.0,
             )
             response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise RuntimeError(
+                f"Ollama at {self._base_url} timed out after 120s generating with '{self._model}'. "
+                "The model may be too large for this machine, or another request is already running."
+            ) from exc
         except httpx.ConnectError as exc:
             raise RuntimeError(
                 f"Could not reach Ollama at {self._base_url}. Run `ollama serve` "
                 f"(and `ollama pull {self._model}`) or set ANTHROPIC_API_KEY instead."
             ) from exc
-        return response.json()["message"]["content"]
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                raise RuntimeError(
+                    f"Ollama doesn't have model '{self._model}' pulled. Run `ollama pull {self._model}`."
+                ) from exc
+            raise RuntimeError(f"Ollama returned an error: {exc}") from exc
+
+        try:
+            return response.json()["message"]["content"]
+        except (ValueError, KeyError) as exc:
+            raise RuntimeError(f"Ollama returned an unexpected response shape: {response.text[:200]}") from exc
 
 
 class FakeProvider(LLMProvider):

@@ -74,6 +74,28 @@ def test_short_lead_sentence_plus_explanation_in_one_paragraph_is_faithful():
     assert is_answer_faithful(answer, chunks) is True
 
 
+def test_citation_marker_after_period_is_not_orphaned():
+    """Regression test for a real false-rejection found via live testing:
+    a model wrote "...conflict of laws principles. [1]" -- period BEFORE
+    the bracket, not after. Naive sentence-splitting on '.' then produces
+    two fragments: the full claim with NO citation (dropped as "leading
+    uncited"), and a bare "[1]" with NO content (scores as unfaithful on
+    its own, since a lone bracket has no semantic content). The fix must
+    re-glue the bracket onto the sentence that precedes it."""
+    chunks = [_chunk(
+        "This Agreement shall be governed by and construed in accordance with the laws of the "
+        "State of New York, without regard to its conflict of laws principles."
+    )]
+    answer = (
+        "This Agreement shall be governed by and construed in accordance with the laws of the "
+        "State of New York, without regard to its conflict of laws principles. [1]"
+    )
+    faithful, total = faithfulness_score(answer, chunks)
+    assert total == 1
+    assert faithful == 1
+    assert is_answer_faithful(answer, chunks) is True
+
+
 def test_majority_rule_across_distinct_citations_in_one_paragraph():
     liability_chunk = _chunk("Neither party's aggregate liability under this Agreement shall exceed the total fees paid.")
     termination_chunk = _chunk("This Agreement shall remain in effect for one year and may be terminated upon notice.")

@@ -52,16 +52,50 @@ FAITHFULNESS_MIN_RATIO = 0.5
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 _HAS_CITATION = re.compile(r"\[\d+\]")
+_CITATION_ONLY = re.compile(r"^[\[\]\d\s.,;:]*$")  # e.g. "[1]" or "[1][2]." with nothing else
+
+
+def _is_citation_only(sentence: str) -> bool:
+    """True for a 'sentence' that's just citation markers and stray
+    punctuation, with no real content of its own -- produced when a model
+    writes 'claim. [1]' (period BEFORE the bracket) instead of 'claim [1].'
+    (bracket before the period): naive sentence-splitting on '.' then
+    orphans '[1]' into its own fragment. Scored alone, a bare bracket has
+    no semantic content and trivially fails the faithfulness check
+    regardless of how well-supported the actual claim is -- a false
+    rejection, found via live testing, not a real lack of support."""
+    return bool(_CITATION_ONLY.match(sentence.strip()))
 
 
 def _claim_spans(answer_text: str) -> list[str]:
-    """Groups sentences into spans: a citation-bearing sentence absorbs any
-    immediately following sentences that carry no citation marker of their
-    own. Leading uncited sentences (before the first citation) are dropped
-    -- there's nothing to check them against."""
-    sentences = _SENTENCE_SPLIT.split(answer_text.strip())
+    """Groups sentences into spans in two passes.
+
+    Pass 1 repairs a splitting artifact: "claim. [1]" (period BEFORE the
+    bracket) splits into "claim." (no citation) and "[1]" (no content) --
+    the content sentence would otherwise be dropped as "uncited" before
+    the citation fragment is even reached, and the bare bracket would
+    start its own content-free span. Found via live testing. A
+    citation-only fragment is re-glued onto whatever sentence immediately
+    preceded it, regardless of whether that sentence had a citation of its
+    own, undoing the bad split.
+
+    Pass 2 groups the repaired sentences into spans: a citation-bearing
+    sentence absorbs any immediately following sentences that carry no
+    citation marker of their own (the normal "claim [1]. Explanation."
+    pattern). Leading uncited sentences (before the first citation) are
+    dropped -- there's nothing to check them against.
+    """
+    raw_sentences = _SENTENCE_SPLIT.split(answer_text.strip())
+
+    merged: list[str] = []
+    for sentence in raw_sentences:
+        if _is_citation_only(sentence) and merged:
+            merged[-1] = merged[-1] + " " + sentence
+        else:
+            merged.append(sentence)
+
     spans: list[str] = []
-    for sentence in sentences:
+    for sentence in merged:
         if _HAS_CITATION.search(sentence):
             spans.append(sentence)
         elif spans:

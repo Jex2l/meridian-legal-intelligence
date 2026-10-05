@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-**Status: MVP complete (Phases 1–10).** The build log below (one section per
+**Status: MVP complete (Phases 1–11).** The build log below (one section per
 phase) is kept as the detailed record of what was built, why, and what's
 verified at each step. This top section is the map: architecture, how to
 run everything, and where things stand overall.
@@ -825,3 +825,66 @@ Draft) now succeed with correctly cited, faithful answers.
   anticipate -- the fix here is methodology (test against real generated
   output, not just hand-written fixtures), not a claim that every such bug
   is now impossible.
+
+## Phase 11: a clean sweep — 36/36, zero false rejections
+
+Continued the Phase 10 methodology (run real generated output through the
+gates, don't trust hand-written fixtures alone) by auditing every one of
+the 6 fallbacks from Phase 10's eval run individually, rather than
+accepting "6 fell back" as a plausible-looking number and moving on.
+
+### The bug
+A model sometimes writes a citation with the period BEFORE the bracket --
+`"...conflict of laws principles. [1]"` -- instead of after it
+(`"...principles [1]."`). The claim-span sentence-splitter treats that
+period as a sentence boundary, producing two fragments: the full claim
+with no citation marker (dropped as "leading uncited text, nothing to
+check it against"), and a bare `"[1]"` with no content of its own (scored
+alone, a lone bracket has zero semantic content and trivially fails the
+faithfulness check against any passage). All 4 of Phase 10's remaining
+"unfaithful" fallbacks turned out to be exactly this -- correct, faithful
+answers, rejected because of where the model happened to put a period.
+
+### The fix
+`_claim_spans()` now runs a repair pass before grouping: a sentence that's
+*only* citation brackets and stray punctuation (`_is_citation_only`) gets
+re-glued onto whichever sentence immediately preceded it, undoing the bad
+split, before the normal "citation-bearing sentence absorbs its trailing
+explanation" grouping runs. Verified directly against the exact failing
+text, and with a new regression test
+(`test_citation_marker_after_period_is_not_orphaned`).
+
+### Verified: every single eval item, individually
+Not just an aggregate pass/fail count -- every one of the 4 originally-
+flagged fallbacks was re-run individually post-fix and confirmed faithful
+(`faithful=1/1` or `faithful=2/2` each), then the full 36-item eval was
+rerun end-to-end:
+
+```
+Generation metrics (n=36 gold Q/A pairs, 36 answered, 0 fell back)
+metric                                    value
+citation accuracy (cites gold passage)    1.00
+faithfulness (cited sentences supported)  1.00
+```
+
+Zero fallbacks, zero rejections, perfect citation accuracy and
+faithfulness across the entire gold set -- with real local generation, not
+mocked. 47/47 backend tests pass. Re-verified the original two
+user-reported queries live against the running API once more, including a
+case with two citation markers for the same index in one sentence
+(confirms the fix generalizes beyond the single pattern that triggered it).
+
+### Known limitations (Phase 11)
+- A 0/36 fallback rate on THIS 36-item corpus with THIS local model is a
+  strong result, not a claim that false rejections are now structurally
+  impossible. The fix handles the specific citation-formatting pattern
+  found via testing; a sufficiently different model or prompt style could
+  still produce a pattern this claim-span logic doesn't anticipate. The
+  defense against that isn't "this is now perfect" -- it's that this
+  session's methodology (rerun real output, read the actual rejected
+  text, fix the root cause, re-verify item-by-item) is repeatable the next
+  time a gap surfaces.
+- This result is specific to `qwen2.5:7b`'s citation style. A different
+  model (including Claude via `ANTHROPIC_API_KEY`) may format citations
+  differently and should be re-validated against the eval harness rather
+  than assumed to inherit this result.

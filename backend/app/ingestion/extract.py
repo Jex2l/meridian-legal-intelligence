@@ -28,10 +28,15 @@ class ExtractedDocument:
 
 def extract_pdf(path: Path) -> ExtractedDocument:
     pages: list[ExtractedPage] = []
-    with pdfplumber.open(path) as pdf:
-        for i, page in enumerate(pdf.pages, start=1):
-            text = page.extract_text() or ""
-            pages.append(ExtractedPage(page_number=i, text=text))
+    try:
+        with pdfplumber.open(path) as pdf:
+            for i, page in enumerate(pdf.pages, start=1):
+                text = page.extract_text() or ""
+                pages.append(ExtractedPage(page_number=i, text=text))
+    except Exception as exc:  # noqa: BLE001  pdfplumber/pypdf raise several
+        # library-specific exception types for a malformed PDF; normalize
+        # to one clear message.
+        raise ValueError("Could not parse file as PDF -- it may be corrupted or not a real .pdf file") from exc
 
     needs_ocr = any(len(p.text.strip()) < MIN_CHARS_PER_PAGE_BEFORE_OCR for p in pages)
     if not needs_ocr:
@@ -66,7 +71,13 @@ def _ocr_pdf(path: Path) -> list[ExtractedPage]:
 def extract_docx(path: Path) -> ExtractedDocument:
     """DOCX has no native page concept; we treat the whole document as
     page 1 and let chunking split by heading instead of page boundary."""
-    doc = DocxDocument(str(path))
+    try:
+        doc = DocxDocument(str(path))
+    except Exception as exc:  # noqa: BLE001  python-docx raises various
+        # library-internal exception types (zipfile.BadZipFile, its own
+        # PackageNotFoundError, etc.) whose messages include the internal
+        # temp file path -- normalize to one clear message without it.
+        raise ValueError("Could not parse file as DOCX -- it may be corrupted or not a real .docx file") from exc
     lines = [para.text for para in doc.paragraphs]
     text = "\n".join(lines)
     return ExtractedDocument(pages=[ExtractedPage(page_number=1, text=text)], used_ocr=False)
