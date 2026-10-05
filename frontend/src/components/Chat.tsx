@@ -72,7 +72,15 @@ export default function Chat({
   return (
     <div className="flex h-full flex-col bg-white">
       <div className="border-b border-gold/30 bg-gold/10 px-4 py-2 text-xs text-navy/80">
-        Not legal advice. All output must be reviewed by a licensed attorney before use.
+        Not legal advice. All output must be reviewed by a licensed attorney before use.{" "}
+        <a
+          href={`${process.env.NEXT_PUBLIC_MARKETING_URL || "http://localhost:3001"}/disclaimer`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium underline"
+        >
+          Learn more
+        </a>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">

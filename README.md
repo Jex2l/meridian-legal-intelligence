@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-**Status: MVP complete, branded as Meridian Legal Intelligence (Phases 1–12).** The build log below (one section per
+**Status: MVP complete, branded as Meridian Legal Intelligence (Phases 1–13).** The build log below (one section per
 phase) is kept as the detailed record of what was built, why, and what's
 verified at each step. This top section is the map: architecture, how to
 run everything, and where things stand overall.
@@ -966,3 +966,64 @@ any of the functional work from Phases 1–11. Both apps build clean with
 - No real company registration, domain, trademark clearance, or legal
   entity — "Meridian Legal Intelligence" is a suggested brand for this
   codebase, not a cleared or registered name.
+
+## Phase 13: legal pages and marketing-site polish
+
+### What's built
+- **Three real legal pages** on the marketing site (`website/src/app/terms`,
+  `/privacy`, `/disclaimer`), sharing a `LegalPage` layout component.
+  Terms of Service covers the standard set (not-legal-advice positioning,
+  accounts, Your Content/license, workspace isolation, acceptable use,
+  third-party AI providers, warranty disclaimers, limitation of liability,
+  indemnification, termination, governing law). Privacy Policy covers what
+  data is collected, how it's used, who it's shared with (naming
+  Anthropic/Ollama explicitly as generation providers, consistent with how
+  the backend actually routes requests — see Phase 8), retention, security,
+  and user rights (GDPR/CCPA-style). The AI Output Disclaimer is specific
+  to this product: explains the citation-validation and low-confidence
+  safeguards the system actually has, and is explicit that they reduce,
+  not eliminate, the risk of error — written to match what the code in
+  `app/generation/` actually does, not generic boilerplate.
+- **Every legal page opens with a visible "draft template, not legal
+  advice" notice** stating the document hasn't been reviewed by a licensed
+  attorney and needs one before it's relied on — particularly for
+  governing-law/jurisdiction (left as an explicit `[Placeholder]` in both
+  Terms and Privacy) and the operator's actual registered entity name.
+  This mirrors the product's own "not legal advice" stance applied to
+  itself: a legal-AI company's own legal pages should not overclaim
+  authority any more than its product does.
+- Footer and in-app disclaimer banner now link to real pages instead of
+  inert placeholder text (previously `<span>` elements with no `href`).
+- **Marketing-site polish**: six icons added to the Services grid (replacing
+  plain text cards), a new FAQ accordion section addressing the questions
+  a prospective client would actually ask ("Is this legal advice?", "Can
+  my documents be seen by other clients?", "Does the AI ever make things
+  up?") with answers that link back to the relevant legal page, and nav/
+  footer anchor links fixed to work correctly now that the site has
+  multiple pages (`#services` → `/#services`, etc. — previously broken
+  when navigating from a legal page back to a homepage section).
+
+### Verified live
+All three legal pages, the FAQ accordion, the service icons, and the
+in-app disclaimer's new "Learn more" link screenshotted in the browser.
+Both `frontend/` and `website/` build clean (`npm run build`), including
+the three new static routes (`/terms`, `/privacy`, `/disclaimer`).
+
+### Known limitations (Phase 13)
+- **These are templates, not legal advice**, drafted by AI and not
+  reviewed by a licensed attorney — stated on every page itself, and
+  repeated here deliberately. Before relying on them for actual legal
+  protection, have counsel review and complete the bracketed placeholders
+  (governing law/jurisdiction, arbitration body, international-transfer
+  mechanism) and confirm they match your actual registered entity,
+  business model, and the jurisdictions you operate in.
+- The FAQ and legal pages describe the product's real technical
+  safeguards (citation validation, confidence gating, workspace
+  isolation) accurately as of Phase 11 — if those mechanisms change,
+  these pages should be revisited so they don't overstate what the system
+  does.
+- No cookie-consent banner was added, since the Service does not currently
+  set third-party tracking or advertising cookies (only a session token in
+  `localStorage`, disclosed in the Privacy Policy). If analytics or
+  marketing cookies are added later, a consent mechanism would likely be
+  required for EU/UK visitors.
