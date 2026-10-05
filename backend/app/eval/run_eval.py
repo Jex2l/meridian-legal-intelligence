@@ -9,7 +9,6 @@ Usage:
 
 import argparse
 
-from app.core.config import settings
 from app.core.db import SessionLocal, init_db
 from app.eval.fixtures import GOLD_QA
 from app.eval.metrics import (
@@ -118,8 +117,12 @@ def main() -> None:
         run_retrieval_comparison(session, ws.id)
 
         if args.generation:
-            if not settings.anthropic_api_key:
-                print("\n--generation requested but ANTHROPIC_API_KEY is not set; skipping.")
+            from app.generation.provider import get_default_provider
+
+            try:
+                get_default_provider()
+            except RuntimeError as exc:
+                print(f"\n--generation requested but no LLM provider is available: {exc}")
             else:
                 run_generation_eval(session, ws.id)
 

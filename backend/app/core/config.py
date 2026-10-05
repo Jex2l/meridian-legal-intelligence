@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     upload_dir: str = "../data/uploads"
     ocr_tmp_dir: str = "../data/ocr_tmp"
     anthropic_api_key: str = ""
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:7b"
     secret_key: str = "dev-only-insecure-secret-change-me"
     token_ttl_seconds: int = 60 * 60 * 24 * 7
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"

@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-**Status: MVP complete (Phases 1–7).** The build log below (one section per
+**Status: MVP complete (Phases 1–8).** The build log below (one section per
 phase) is kept as the detailed record of what was built, why, and what's
 verified at each step. This top section is the map: architecture, how to
 run everything, and where things stand overall.
@@ -59,7 +59,7 @@ docker compose up -d
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp ../.env.example .env   # add ANTHROPIC_API_KEY to use /ask and /draft
+cp ../.env.example .env   # add ANTHROPIC_API_KEY, or run `ollama serve` locally (see Phase 8) — /ask and /draft need one of the two
 python -m pytest -q       # 32 tests, all against the live Postgres container
 uvicorn app.api.main:app --reload --port 8000
 
@@ -517,7 +517,10 @@ reading the whole build log to find:
   implemented and unit-tested with a `FakeProvider`, but weren't run
   against a real model's output here (Phases 3–4). Every other piece
   (retrieval, confidence gating, citation validation, the UI, access
-  control) was verified against the real pipeline.
+  control) was verified against the real pipeline. **Resolved in Phase 8**
+  below via a local Ollama fallback — every one of these paths now has
+  real, verified output; what remains is only that it's a smaller local
+  model standing in for Claude, not that it's untested.
 - **Auth is email-only, no password** (Phase 5) — deliberately out of scope
   for an MVP demo; the part that matters for the hard isolation
   requirement (workspace resolved server-side from a verified token, not
@@ -534,8 +537,11 @@ reading the whole build log to find:
 
 **Near-term (fills the gaps above):**
 1. Real CourtListener ingestion once an API token is available.
-2. Run the eval harness with a real `ANTHROPIC_API_KEY` and record actual
-   citation-accuracy/faithfulness numbers, not just the retrieval table.
+2. ~~Run the eval harness with a real LLM and record actual citation-
+   accuracy/faithfulness numbers.~~ Done in Phase 8 with a local Ollama
+   model (1.00 citation accuracy, 0.89 faithfulness on 36 items); rerun
+   with `ANTHROPIC_API_KEY` for the production-quality baseline once a key
+   is available.
 3. Alembic migrations; replace email-only auth with real password/OAuth.
 4. Scale the eval corpus (more documents, more distractor clauses) to get
    a reranker comparison that actually differentiates — the current one
@@ -570,3 +576,80 @@ deployment would look like:
   queue (e.g. a Job or a worker Deployment consuming from SQS/Pub/Sub) so a
   large PDF upload doesn't hold an API pod and a request thread for the
   full OCR+embedding pipeline.
+
+## Phase 8: local LLM via Ollama — closing the "no API key" gap
+
+Phases 3–7 above were built and tested with generation/drafting/eval
+citation-accuracy gated behind "no `ANTHROPIC_API_KEY` in this
+environment" — the single largest documented gap in the MVP. This phase
+closes it without needing any cloud credential at all.
+
+### What's built
+- `app/generation/provider.py`: added `OllamaProvider`, calling a local
+  `ollama serve` instance's `/api/chat` endpoint. `get_default_provider()`
+  now prefers `AnthropicProvider` when `ANTHROPIC_API_KEY` is set, and
+  otherwise falls back to `OllamaProvider` if `ollama serve` is reachable
+  (checked with a 1s timeout against `/api/tags`), raising the same clear
+  `RuntimeError` as before only if neither is available. `/ask` and
+  `/draft` needed zero changes — they already treated the provider as
+  swappable.
+- `backend/.env` config: `OLLAMA_BASE_URL` (default `http://localhost:11434`)
+  and `OLLAMA_MODEL` (default `qwen2.5:7b`).
+- `tests/test_provider.py`: provider-selection logic (Anthropic preferred,
+  Ollama fallback, clear error when neither available) and `OllamaProvider`
+  request/response handling, all mocked so they run without either service
+  actually up.
+- Fixed three tests (`tests/test_api.py`) that had baked in "no LLM
+  provider is ever available" as an environment assumption; they now use
+  `monkeypatch` + `FakeProvider` so they're deterministic regardless of
+  what's running on the machine that runs them.
+
+### Verified live — every previously-gated path, now with real output
+- **CLI**: `app/generation/cli.py ask` and `draft` both return real,
+  correctly cited answers from `qwen2.5:7b` (confirmed: the indemnification
+  question correctly cites the indemnification clause, not the adjacent
+  scope-of-services clause).
+- **API**: `/ask` and `/draft`, tested live via `curl` after restarting the
+  server to pick up the new provider code, both return real grounded
+  answers with populated `citations` arrays.
+- **UI**: the citation-click-to-highlight flow — the one piece of the
+  frontend that could only be assumed correct before, since it needed a
+  real `[n]`-marked answer to click — now verified end-to-end in the
+  browser: asked a question, got a real answer with a `[1]` marker, clicked
+  it, watched the source viewer scroll to and highlight the right passage.
+  Did the same for a two-citation draft (`[1]` and `[2]`), confirming each
+  marker independently jumps to its own distinct passage.
+- **Eval harness**, `python -m app.eval.run_eval --generation`, now
+  produces real numbers instead of skipping:
+
+  ```
+  Generation metrics (n=36 gold Q/A pairs, 35 answered, 1 fell back)
+  metric                                     value
+  ------------------------------------------  -----
+  citation accuracy (cites gold passage)     1.00
+  faithfulness (cited sentences supported)   0.89
+  ```
+
+  Reading this honestly: 35/36 questions got a real answer (1 fell back to
+  low-confidence — worth inspecting, same as the 2/36 recall@1 misses from
+  Phase 4). Of those 35, every single citation pointed at the actual gold
+  passage (1.00) — `qwen2.5:7b` didn't cite plausible-sounding-but-wrong
+  passages even when multiple candidates were in context. Faithfulness at
+  0.89 means roughly 1 in 9 cited sentences said something not fully
+  supported by its cited passage, even though the citation itself pointed
+  at the right place — a smaller, different failure mode than wrong
+  citations, worth tracking separately as the system evolves.
+
+### Known limitations (Phase 8)
+- `qwen2.5:7b` (7B, Q4 quantized) is a much smaller model than Claude
+  Sonnet; these numbers establish that the full pipeline works end-to-end
+  with real generation, not that this is the quality bar to expect in
+  production. Running the same `--generation` eval with
+  `ANTHROPIC_API_KEY` set would give the production-quality baseline.
+- Local generation is slower (several seconds per answer, vs. network
+  latency for a hosted API) and ties up this machine's CPU/GPU — fine for
+  development, not a production generation strategy at any real request
+  volume.
+- The 0.89 faithfulness number came from one run against one small corpus
+  with one local model; treat it as "the harness works and surfaces real
+  signal," not as a number to optimize against without a larger eval set.

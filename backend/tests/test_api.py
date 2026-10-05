@@ -96,7 +96,17 @@ def test_ask_low_confidence_returns_fallback_without_llm(client, sample_docx):
     assert body["citations"] == []
 
 
-def test_ask_relevant_question_without_api_key_returns_503(client, sample_docx):
+def test_ask_relevant_question_with_no_provider_returns_503(client, sample_docx, monkeypatch):
+    """Forces the "no LLM provider available" path regardless of whether
+    this machine happens to have ANTHROPIC_API_KEY set or Ollama running,
+    so the test is deterministic in any environment."""
+    import app.generation.answer as answer_module
+
+    def _no_provider():
+        raise RuntimeError("No LLM provider available (test)")
+
+    monkeypatch.setattr(answer_module, "get_default_provider", _no_provider)
+
     auth = _signup(client, "Firm D", "d@firmd.test")
     headers = {"Authorization": f"Bearer {auth['access_token']}"}
     with open(sample_docx, "rb") as f:
@@ -106,12 +116,24 @@ def test_ask_relevant_question_without_api_key_returns_503(client, sample_docx):
     assert resp.status_code == 503
 
 
-def test_spoofed_workspace_id_in_request_body_is_ignored(client, sample_docx):
+def _use_fake_provider(monkeypatch, response_text: str) -> None:
+    """Swap in a deterministic FakeProvider for /ask so these tests don't
+    depend on whether this machine has a real LLM (Anthropic key or Ollama)
+    available -- they're testing workspace scoping, not generation quality."""
+    import app.generation.answer as answer_module
+    from app.generation.provider import FakeProvider
+
+    monkeypatch.setattr(answer_module, "get_default_provider", lambda: FakeProvider(response_text))
+
+
+def test_spoofed_workspace_id_in_request_body_is_ignored(client, sample_docx, monkeypatch):
     """AskRequest/DraftRequest have no workspace_id field, so even if a
     client stuffs one into the JSON body, FastAPI/Pydantic silently drops
     unknown fields -- the server always resolves workspace_id from the
     verified token, never the request. This test proves the field has zero
     effect, rather than just trusting that it does."""
+    _use_fake_provider(monkeypatch, "Each party indemnifies the other [1].")
+
     auth_a = _signup(client, "Firm E", "e@firme.test")
     auth_f = _signup(client, "Firm F", "f@firmf.test")
     headers_a = {"Authorization": f"Bearer {auth_a['access_token']}"}
@@ -120,8 +142,8 @@ def test_spoofed_workspace_id_in_request_body_is_ignored(client, sample_docx):
 
     # Ask as Firm F (no documents of its own), spoofing Firm A's workspace_id
     # in the body. If the field were honored, this would behave as Firm A's
-    # question (relevant -> 503 since there's no API key); it must instead
-    # behave as Firm F's question (nothing relevant -> low_confidence fallback).
+    # question (relevant -> a real answer); it must instead behave as Firm
+    # F's question (nothing relevant -> low_confidence fallback).
     headers_f = {"Authorization": f"Bearer {auth_f['access_token']}"}
     resp = client.post(
         "/ask",
@@ -132,7 +154,9 @@ def test_spoofed_workspace_id_in_request_body_is_ignored(client, sample_docx):
     assert resp.json()["low_confidence"] is True
 
 
-def test_cross_workspace_question_never_sees_other_workspaces_document(client, sample_docx):
+def test_cross_workspace_question_never_sees_other_workspaces_document(client, sample_docx, monkeypatch):
+    _use_fake_provider(monkeypatch, "Each party indemnifies the other [1].")
+
     auth_a = _signup(client, "Firm G", "g@firmg.test")
     auth_h = _signup(client, "Firm H", "h@firmh.test")
     headers_a = {"Authorization": f"Bearer {auth_a['access_token']}"}
@@ -141,13 +165,14 @@ def test_cross_workspace_question_never_sees_other_workspaces_document(client, s
     with open(sample_docx, "rb") as f:
         client.post("/documents/upload", headers=headers_a, files={"file": ("contract.docx", f)})
 
-    # Firm H has no documents at all; the same question that would be
-    # answerable (relevant -> 503, no API key) for Firm A must fall back to
-    # low-confidence for Firm H, proving Firm A's chunks never entered
-    # Firm H's retrieval candidate set.
+    # Firm H has no documents at all; the same question that gets a real,
+    # cited answer for Firm A must fall back to low-confidence for Firm H,
+    # proving Firm A's chunks never entered Firm H's retrieval candidate set.
     resp_a = client.post("/ask", headers=headers_a, json={"question": "What does the indemnification clause say?"})
     resp_h = client.post("/ask", headers=headers_h, json={"question": "What does the indemnification clause say?"})
 
-    assert resp_a.status_code == 503  # relevant retrieval found -> tried to call the LLM
+    assert resp_a.status_code == 200
+    assert resp_a.json()["low_confidence"] is False
+    assert len(resp_a.json()["citations"]) > 0
     assert resp_h.status_code == 200
     assert resp_h.json()["low_confidence"] is True
