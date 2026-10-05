@@ -35,6 +35,51 @@ class AnthropicProvider(LLMProvider):
         return "".join(block.text for block in response.content if block.type == "text")
 
 
+class GroqProvider(LLMProvider):
+    """Groq's free-tier hosted inference API (OpenAI-compatible chat
+    completions), for fast cloud generation with no self-hosted compute --
+    the production default when no Anthropic key is configured, since
+    Ollama isn't realistically runnable on a free hosting tier."""
+
+    def __init__(self, model: str | None = None, api_key: str | None = None):
+        self._api_key = api_key or settings.groq_api_key
+        if not self._api_key:
+            raise RuntimeError("GROQ_API_KEY is not set. Set it in backend/.env to use Groq for generation.")
+        self._model = model or settings.groq_model
+
+    def generate(self, system: str, user: str, max_tokens: int = 1024) -> str:
+        import httpx
+
+        try:
+            response = httpx.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json={
+                    "model": self._model,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    "max_tokens": max_tokens,
+                },
+                timeout=60.0,
+            )
+            response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise RuntimeError(f"Groq API timed out after 60s generating with '{self._model}'.") from exc
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 401:
+                raise RuntimeError("Groq API rejected the request: GROQ_API_KEY is invalid or expired.") from exc
+            if exc.response.status_code == 429:
+                raise RuntimeError("Groq API rate limit reached; try again shortly.") from exc
+            raise RuntimeError(f"Groq API returned an error: {exc}") from exc
+
+        try:
+            return response.json()["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError) as exc:
+            raise RuntimeError(f"Groq API returned an unexpected response shape: {response.text[:200]}") from exc
+
+
 class OllamaProvider(LLMProvider):
     """Local-model fallback via Ollama's REST API. No API key needed, runs
     entirely on this machine -- useful for development/demo when no
@@ -109,16 +154,20 @@ def _ollama_reachable() -> bool:
 
 
 def get_default_provider() -> LLMProvider:
-    """Anthropic if a key is configured (best quality); otherwise fall back
-    to a local Ollama model if one is reachable, so the app still works
-    with zero cloud dependency. Raises a clear error only if neither is
+    """Anthropic if a key is configured (best quality, paid); otherwise
+    Groq if a key is configured (free-tier cloud inference, no self-hosted
+    compute needed -- the practical default for a free-tier deployment);
+    otherwise a local Ollama model if one is reachable (zero cloud
+    dependency, for local dev). Raises a clear error only if none are
     available."""
     if settings.anthropic_api_key:
         return AnthropicProvider()
+    if settings.groq_api_key:
+        return GroqProvider()
     if _ollama_reachable():
         return OllamaProvider()
     raise RuntimeError(
-        "No LLM provider available: ANTHROPIC_API_KEY is not set, and "
-        f"Ollama is not reachable at {settings.ollama_base_url}. Set "
-        "ANTHROPIC_API_KEY in backend/.env, or run `ollama serve`."
+        "No LLM provider available: ANTHROPIC_API_KEY and GROQ_API_KEY are both "
+        f"unset, and Ollama is not reachable at {settings.ollama_base_url}. Set "
+        "one of the two API keys in backend/.env, or run `ollama serve`."
     )

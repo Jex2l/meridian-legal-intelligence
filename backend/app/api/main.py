@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routers import auth, documents, qa
+from app.core.config import settings
 from app.core.db import init_db
 
 logger = logging.getLogger("lexrag")
@@ -21,7 +22,7 @@ app = FastAPI(title="LexRAG API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

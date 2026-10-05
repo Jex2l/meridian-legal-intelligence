@@ -107,7 +107,7 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp ../.env.example .env   # add ANTHROPIC_API_KEY, or run `ollama serve` locally
-python -m pytest -q       # 47 tests, all against the live Postgres container
+python -m pytest -q       # 52 tests, all against the live Postgres container
 uvicorn app.api.main:app --reload --port 8000
 
 # 3. client portal (separate terminal)
@@ -133,6 +133,14 @@ python -m app.eval.run_eval --generation   # retrieval + citation accuracy + fai
 
 A sample contract is included at [`samples/demo_contract.docx`](samples/demo_contract.docx)
 if you want something to upload immediately.
+
+## Deploying to production, for free
+
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) is a full walkthrough — Supabase
+(Postgres+pgvector), Groq (free-tier LLM), Render (backend API), and
+Vercel (both Next.js apps) — including the account-creation steps only
+you can do, and an honest list of what "free" actually costs you (cold
+starts, a 512MB RAM ceiling, no OCR without a paid tier, ephemeral disk).
 
 ## Project structure
 

@@ -1,0 +1,21 @@
+# Render Blueprint for the backend API only. Deploy by connecting this repo
+# in the Render dashboard ("New +" -> "Blueprint") with rootDir set so Render
+# finds this file, or create a single Web Service manually with the same
+# settings (see docs/DEPLOYMENT.md for the full walkthrough, including the
+# env vars that must be set by hand in the dashboard rather than here, since
+# they're secrets this file should never contain).
+services:
+  - type: web
+    name: meridian-legal-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn app.api.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.2
+      # Secrets and deployment-specific values (DATABASE_URL, GROQ_API_KEY,
+      # SECRET_KEY, CORS_ALLOWED_ORIGINS, UPLOAD_DIR) are set in the Render
+      # dashboard's Environment tab, not here -- see docs/DEPLOYMENT.md.
