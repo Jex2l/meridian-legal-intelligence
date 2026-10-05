@@ -6,7 +6,7 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-## Status: Phase 4 complete — eval harness and baseline report
+## Status: Phase 5 complete — FastAPI backend + Next.js UI with citation viewer
 
 ### What's built
 - `docker-compose.yml`: a single Postgres instance (`pgvector/pgvector:pg16`)
@@ -280,5 +280,72 @@ corpus to check.
   recall@5 saturating at 1.00 means k=5 isn't discriminating on this corpus
   size — the k=1 table is the more informative one here.
 
-### Next: Phase 5
-FastAPI endpoints and the Next.js UI with the citation viewer.
+## Phase 5: FastAPI backend + Next.js UI
+
+### What's built
+- `backend/app/core/security.py`: minimal HMAC-signed token auth (email
+  only, no password — an explicit MVP shortcut, documented as such). The
+  reason it still matters for the isolation requirement: **every API
+  endpoint resolves `workspace_id` from the verified token server-side**,
+  never from the request body, so a client can't just assert "I'm workspace
+  X" on a request.
+- `backend/app/api/`: FastAPI app (`main.py`) with routers —
+  `auth.py` (`/auth/signup`, `/auth/login`), `documents.py`
+  (`/documents/upload`, `/documents`, `/documents/{id}` — all scoped to
+  `current_user.workspace_id OR public`, with a 404 rather than 403 for a
+  cross-workspace document so existence isn't leaked), and `qa.py`
+  (`/ask`, `/draft`, wrapping `answer_question`/`draft` and turning a
+  missing-API-key `RuntimeError` into a clean `503` instead of a stack
+  trace).
+- `frontend/`: Next.js (App Router, TypeScript, Tailwind). Split view —
+  chat on the left (`Chat.tsx`, Ask/Draft mode toggle, a persistent "not
+  legal advice" banner), source document viewer on the right
+  (`SourceViewer.tsx`, renders all of a document's chunks with the cited
+  one highlighted and scrolled into view). `CitedText.tsx` turns `[n]`
+  markers in an answer into clickable buttons that jump the source viewer
+  to that citation's passage. `AuthForm.tsx` handles signup/login;
+  `Sidebar.tsx` handles document list + upload. Auth token stored in
+  `localStorage` (`lib/session.ts`) with a thin typed API client
+  (`lib/api.ts`).
+
+### How to run it
+
+```bash
+# terminal 1
+cd backend && source .venv/bin/activate
+uvicorn app.api.main:app --reload --port 8000
+
+# terminal 2
+cd frontend && cp .env.local.example .env.local && npm install && npm run dev
+```
+
+Open `http://localhost:3000`, create a workspace, upload a `.pdf`/`.docx`,
+and ask a question. Without `ANTHROPIC_API_KEY` set in `backend/.env`,
+`/ask` and `/draft` will 503 with a clear message (verified live); an
+unrelated question still returns the low-confidence fallback without
+hitting that code path at all, same as the CLI.
+
+### Verified live (via the browser)
+Signup → document upload → sidebar listing → source viewer rendering all
+chunks → low-confidence fallback in chat → clean 503 surfaced as an error
+bubble instead of a crash. `npm run build` passes with no TypeScript
+errors. Citation-click-to-highlight wasn't exercised against a *real*
+generated answer (no API key here to produce one), but it's the same
+`scrollIntoView` + highlight path already verified when selecting a
+document from the sidebar.
+
+### Known limitations (Phase 5)
+- Auth is email-only with no password — fine for an MVP demo, not for
+  anything real. Per-endpoint workspace resolution from the token is the
+  part that actually matters for the isolation requirement; password auth
+  is a separate, orthogonal concern to add later.
+- No automated frontend tests (e.g. Playwright) — covered by live manual
+  browser verification instead, given the time budget.
+- The source viewer shows a document's chunks sequentially, not a rendered
+  PDF/DOCX page — good enough to locate and read a cited passage, but not a
+  pixel-accurate "document viewer."
+
+### Next: Phase 6
+Drafting mode (already built in Phase 3's `app/generation/draft.py` and
+wired into `/draft` here) plus a closer look at per-workspace access
+control end-to-end across every endpoint.

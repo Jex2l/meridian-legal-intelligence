@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     upload_dir: str = "../data/uploads"
     ocr_tmp_dir: str = "../data/ocr_tmp"
     anthropic_api_key: str = ""
+    secret_key: str = "dev-only-insecure-secret-change-me"
+    token_ttl_seconds: int = 60 * 60 * 24 * 7
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dim: int = 384
 
