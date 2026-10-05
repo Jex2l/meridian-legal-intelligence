@@ -6,7 +6,84 @@ drafts. Built in phases; this file is updated as each phase lands.
 
 **Not legal advice.** All output must be reviewed by a licensed attorney.
 
-## Status: Phase 6 complete — drafting mode + access-control audit
+**Status: MVP complete (Phases 1–7).** The build log below (one section per
+phase) is kept as the detailed record of what was built, why, and what's
+verified at each step. This top section is the map: architecture, how to
+run everything, and where things stand overall.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Client
+        UI["Next.js UI\nchat + source viewer"]
+    end
+
+    subgraph Backend [FastAPI backend]
+        API["API routers\nauth / documents / ask / draft"]
+        ING["Ingestion\nextract -> chunk -> embed"]
+        RET["Hybrid retrieval\nBM25 + dense -> RRF -> rerank"]
+        GEN["Generation\nprompt -> Claude -> validate citations"]
+    end
+
+    subgraph Data [Postgres + pgvector, on the mounted SSD]
+        PG[("workspaces / users / documents / chunks\ntsvector + vector indexes")]
+    end
+
+    LLM[["Anthropic API\n(swappable LLMProvider)"]]
+
+    UI -- "Bearer token" --> API
+    API --> ING --> PG
+    API --> RET --> PG
+    API --> GEN
+    GEN --> RET
+    GEN --> LLM
+    RET -. "workspace_id = :ws OR NULL\napplied inside the SQL" .-> PG
+```
+
+**The isolation guarantee, concretely:** `workspace_id` lives on every
+`Document` and `Chunk` from ingestion onward. Both halves of hybrid
+retrieval (`app/retrieval/search.py`) apply
+`WHERE (workspace_id = :ws OR workspace_id IS NULL)` directly inside their
+SQL — a chunk from another workspace is never fetched from Postgres, so it
+can't leak into the LLM's context. The API layer resolves `:ws` from a
+verified auth token, never from client input (see Phase 6's audit below).
+
+## Quickstart
+
+```bash
+# 1. Postgres (pgvector), data persisted under ./data on this SSD
+docker compose up -d
+
+# 2. backend
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp ../.env.example .env   # add ANTHROPIC_API_KEY to use /ask and /draft
+python -m pytest -q       # 32 tests, all against the live Postgres container
+uvicorn app.api.main:app --reload --port 8000
+
+# 3. frontend (separate terminal)
+cd frontend
+cp .env.local.example .env.local
+npm install
+npm run dev   # http://localhost:3000
+```
+
+Try it via CLI without the UI:
+
+```bash
+cd backend && source .venv/bin/activate
+python -m app.ingestion.cli init-workspace "Acme Law LLP" "alice@acme.law" "Alice Attorney"
+python -m app.ingestion.cli ingest <workspace_id> <user_id> /path/to/contract.pdf
+python -m app.retrieval.cli query <workspace_id> "indemnification obligations"
+python -m app.generation.cli ask <workspace_id> "What does the indemnification clause say?"
+python -m app.eval.run_eval   # retrieval metrics; --generation adds citation accuracy/faithfulness
+```
+
+## Build log
+
+## Phase 1: repo scaffold, Docker Compose, ingestion pipeline
 
 ### What's built
 - `docker-compose.yml`: a single Postgres instance (`pgvector/pgvector:pg16`)
@@ -400,6 +477,96 @@ provider error path both work identically for drafting as for Q&A.
   chain, as noted in Phase 5 — it determines *who* `current_user` is, which
   everything above then trusts.
 
-### Next: Phase 7
-README wrap-up: architecture diagram, known limitations rollup, and
-roadmap.
+## Phase 7: known limitations, roadmap
+
+### Repo layout
+
+```
+LexRAG/
+├── docker-compose.yml       # Postgres + pgvector, data on ./data (this SSD)
+├── backend/
+│   └── app/
+│       ├── ingestion/       # extract (PDF/DOCX/OCR), chunk, pipeline, CLI
+│       ├── retrieval/       # embeddings, reranker, hybrid search, CLI
+│       ├── generation/      # provider, prompts, citations, answer, draft, CLI
+│       ├── eval/            # fixtures, seed, metrics, run_eval
+│       ├── api/             # FastAPI app, routers, schemas, auth
+│       ├── core/            # config, db, security
+│       └── models/          # SQLAlchemy models
+│   └── tests/               # one file per package above, all against live Postgres
+└── frontend/                # Next.js: chat + source viewer split view
+```
+
+### Known limitations, all in one place
+Tech debt called out per-phase above, gathered here so nothing requires
+reading the whole build log to find:
+
+- **No Alembic migrations** — `init_db()` does `create_all` plus idempotent
+  raw SQL for the generated `tsvector` column and the HNSW index (Phase 1,
+  Phase 2). Fine for an MVP's single schema version; would need real
+  migrations before a second schema change ships.
+- **BM25 is approximated** via Postgres `ts_rank_cd` over `to_tsvector`,
+  not a true BM25 implementation (Phase 2).
+- **Public case law is synthetic**, written for this project — CourtListener
+  now requires an authenticated API token this environment doesn't have,
+  confirmed live (Phase 4). `ingest_file()` already accepts arbitrary text
+  with `workspace_id=None`, so real ingestion is a small addition once a
+  token exists, not a redesign.
+- **No `ANTHROPIC_API_KEY` in this environment** — generation, drafting, and
+  the eval harness's citation-accuracy/faithfulness metrics are fully
+  implemented and unit-tested with a `FakeProvider`, but weren't run
+  against a real model's output here (Phases 3–4). Every other piece
+  (retrieval, confidence gating, citation validation, the UI, access
+  control) was verified against the real pipeline.
+- **Auth is email-only, no password** (Phase 5) — deliberately out of scope
+  for an MVP demo; the part that matters for the hard isolation
+  requirement (workspace resolved server-side from a verified token, not
+  client input) is in place regardless, and audited in Phase 6.
+- **No automated frontend tests** — covered by live manual browser
+  verification at each UI-touching phase instead, given the time budget
+  (Phase 5).
+- **Eval set is 36 items** over a small synthetic corpus — clears the
+  "at least 30" bar, but small enough that recall@5 saturates at 1.00 and
+  the reranker shows no measurable lift (a real finding on this corpus, not
+  a bug — see Phase 4's baseline results).
+
+### Roadmap
+
+**Near-term (fills the gaps above):**
+1. Real CourtListener ingestion once an API token is available.
+2. Run the eval harness with a real `ANTHROPIC_API_KEY` and record actual
+   citation-accuracy/faithfulness numbers, not just the retrieval table.
+3. Alembic migrations; replace email-only auth with real password/OAuth.
+4. Scale the eval corpus (more documents, more distractor clauses) to get
+   a reranker comparison that actually differentiates — the current one
+   doesn't because the demo corpus is too clean.
+
+**Further out:**
+5. Document-level permissions beyond workspace-level (e.g. a document
+   visible only to specific users within a workspace).
+6. A real source-document viewer (rendered PDF/DOCX with highlight
+   overlays) instead of the current sequential chunk list.
+7. Streaming answers in the UI instead of waiting for the full response.
+8. Multi-turn conversation context for follow-up questions.
+
+### Moving to Kubernetes
+Local dev is Docker Compose with one Postgres container; a production
+deployment would look like:
+- **Postgres** → a managed instance (RDS/Cloud SQL) or a StatefulSet with
+  the `pgvector` extension, not a bare container — this is the one
+  stateful piece and the most operationally sensitive given it's also the
+  isolation boundary.
+- **Backend** → a Deployment behind a Service, horizontally scalable since
+  `app/api/main.py` is stateless (auth is a signed token, not a session
+  store); embeddings/reranking model weights would move to an init
+  container or a baked image layer to avoid a cold-start download per pod.
+- **Frontend** → a separate Deployment (or a static export behind a CDN,
+  since it's a standard Next.js app) pointed at the backend Service via
+  `NEXT_PUBLIC_API_BASE_URL`.
+- **Secrets** (`ANTHROPIC_API_KEY`, `SECRET_KEY`, DB credentials) → a
+  Secret resource / external secrets manager, not `.env` files.
+- **Ingestion** is currently synchronous inside the request (upload →
+  extract → chunk → embed → respond); at real scale this would move to a
+  queue (e.g. a Job or a worker Deployment consuming from SQS/Pub/Sub) so a
+  large PDF upload doesn't hold an API pod and a request thread for the
+  full OCR+embedding pipeline.
