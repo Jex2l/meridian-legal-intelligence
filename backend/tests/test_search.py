@@ -84,6 +84,27 @@ def test_reranker_reorders_candidates(db_session, two_workspaces_with_docs):
     assert all(r.rerank_score is not None for r in results)
 
 
+def test_use_reranker_none_defers_to_settings(monkeypatch, db_session, two_workspaces_with_docs):
+    """use_reranker=None (the default for answer_question()/draft()'s
+    callers) must defer to settings.enable_reranker, and when that's
+    False, the cross-encoder must never be invoked -- this is what lets
+    production run without sentence-transformers/torch installed at all
+    (see requirements-render.txt)."""
+    import app.retrieval.search as search_module
+
+    ws_a, _ws_b = two_workspaces_with_docs
+
+    def exploding_rerank(*args, **kwargs):
+        raise AssertionError("cross-encoder must not be called when enable_reranker is False")
+
+    monkeypatch.setattr(search_module.settings, "enable_reranker", False)
+    monkeypatch.setattr(search_module, "cross_encoder_rerank", exploding_rerank)
+
+    results = hybrid_search(db_session, "indemnification losses breach", ws_a.id, k=3)
+    assert len(results) > 0
+    assert all(r.rerank_score is None for r in results)
+
+
 def test_jurisdiction_filter_applied_in_query(db_session, two_workspaces_with_docs):
     ws_a, _ws_b = two_workspaces_with_docs
     results = hybrid_search(

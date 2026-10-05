@@ -10,21 +10,24 @@ services:
     runtime: python
     plan: free
     rootDir: backend
-    # Installs the CPU-only torch wheel FIRST, from PyTorch's own CPU
-    # index. The default PyPI `torch` (what plain `pip install -r
-    # requirements.txt` pulls in as a transitive dependency of
-    # sentence-transformers) is the GPU/CUDA build, which bundles ~1GB of
-    # NVIDIA libraries that are useless on a GPU-less host but still get
-    # loaded into memory -- confirmed live, this alone was enough to blow
-    # a 512MB instance's RAM during model loading. Installing the CPU
-    # wheel first means `pip install -r requirements.txt` finds torch
-    # already satisfied and never fetches the CUDA build.
-    buildCommand: "pip install torch==2.9.1+cpu --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt"
+    # requirements-render.txt deliberately omits sentence-transformers (and
+    # therefore torch/transformers/numpy/scipy/sklearn) -- confirmed live,
+    # loading two local ML models exceeded a 512MB host's RAM even with a
+    # CPU-only torch build. Production instead calls HF's hosted embedding
+    # API and disables the cross-encoder reranker (EMBEDDING_PROVIDER and
+    # ENABLE_RERANKER below) -- see requirements-render.txt's own comment
+    # for the full reasoning.
+    buildCommand: "pip install -r requirements-render.txt"
     startCommand: "uvicorn app.api.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.2
+      - key: EMBEDDING_PROVIDER
+        value: huggingface_api
+      - key: ENABLE_RERANKER
+        value: "false"
       # Secrets and deployment-specific values (DATABASE_URL, GROQ_API_KEY,
-      # SECRET_KEY, CORS_ALLOWED_ORIGINS, UPLOAD_DIR) are set in the Render
-      # dashboard's Environment tab, not here -- see docs/DEPLOYMENT.md.
+      # HF_API_TOKEN, SECRET_KEY, CORS_ALLOWED_ORIGINS, UPLOAD_DIR) are set
+      # in the Render dashboard's Environment tab, not here -- see
+      # docs/DEPLOYMENT.md.

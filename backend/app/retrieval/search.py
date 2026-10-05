@@ -14,6 +14,7 @@ from datetime import date
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.retrieval.embedding import embed_query
 from app.retrieval.reranker import rerank as cross_encoder_rerank
 
@@ -127,8 +128,14 @@ def hybrid_search(
     k: int = 5,
     candidate_k: int = 30,
     filters: SearchFilters | None = None,
-    use_reranker: bool = True,
+    use_reranker: bool | None = None,
 ) -> list[RetrievedChunk]:
+    # None (the implicit default for answer_question()/draft()'s callers)
+    # defers to settings.enable_reranker; CLI/eval callers pass an explicit
+    # True/False and are unaffected.
+    if use_reranker is None:
+        use_reranker = settings.enable_reranker
+
     bm25_results = _bm25_candidates(session, query, workspace_id, filters, candidate_k)
     query_vector = embed_query(query)
     dense_results = _dense_candidates(session, query_vector, workspace_id, filters, candidate_k)

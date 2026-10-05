@@ -18,6 +18,19 @@ class Settings(BaseSettings):
     token_ttl_seconds: int = 60 * 60 * 24 * 7
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dim: int = 384
+    # "local" loads the model in-process via sentence-transformers (needs
+    # torch, ~1GB+ RAM once both embedding+reranker models are loaded --
+    # fine for local dev, too much for a 512MB free host). "huggingface_api"
+    # calls HF's hosted inference API instead, so no local ML dependency is
+    # needed at all. See app/retrieval/embedding.py.
+    embedding_provider: str = "local"
+    hf_api_token: str = ""
+    # Cross-encoder reranking has no remote-API fallback here (see
+    # app/retrieval/search.py) -- disabling it in production avoids loading
+    # a second local model, trading some retrieval precision for fitting in
+    # a RAM-constrained host. hybrid_search() falls back to the RRF fused
+    # score for both ranking and the confidence gate when this is off.
+    enable_reranker: bool = True
     # Comma-separated list of allowed CORS origins, e.g.
     # "https://app.example.com,https://www.example.com". Defaults to the
     # local dev client portal only.

@@ -1,0 +1,45 @@
+# Lean requirements for the Render (free tier) deployment -- same as
+# requirements.txt but WITHOUT sentence-transformers, which transitively
+# pulls in torch + transformers + numpy + scipy + scikit-learn. Confirmed
+# live: that combination exceeds a 512MB host's RAM just loading two small
+# models at startup.
+#
+# This is safe only because production is configured to not need those
+# models at all: EMBEDDING_PROVIDER=huggingface_api (calls HF's hosted API
+# instead of loading a local model, see app/retrieval/embedding.py) and
+# ENABLE_RERANKER=false (the cross-encoder reranker has no remote
+# equivalent here, so it's simply disabled in production -- hybrid_search()
+# falls back to the RRF fused score for ranking and the confidence gate,
+# see app/retrieval/search.py and app/generation/confidence.py). If either
+# of those env vars isn't set correctly, the app will try to import
+# sentence_transformers and fail with ModuleNotFoundError -- that's the
+# intended, loud failure mode rather than silently reinstalling the heavy
+# dependency.
+#
+# Local development should keep using plain requirements.txt, which keeps
+# sentence-transformers so the full test suite (including the parts that
+# exercise real model behavior, not mocks) keeps working unchanged.
+
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+sqlalchemy==2.0.35
+psycopg[binary]==3.2.1
+pgvector==0.3.4
+pydantic==2.9.2
+pydantic-settings==2.5.2
+python-multipart==0.0.9
+
+# ingestion
+pypdf==4.3.1
+pdfplumber==0.11.4
+python-docx==1.1.2
+pdf2image==1.17.0
+pytesseract==0.3.13
+Pillow==10.4.0
+
+# retrieval (phase 2+) -- sentence-transformers deliberately omitted, see above
+rank-bm25==0.2.2
+
+# generation (phase 3+)
+anthropic==0.69.0
+httpx==0.27.2
