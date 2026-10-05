@@ -192,10 +192,12 @@ Full list, with context for each, in [docs/BUILD_LOG.md](docs/BUILD_LOG.md).
 
 ## License
 
-© Meridian Legal Intelligence. All rights reserved. This repository is
-public for portfolio/demonstration purposes; no license is granted to use,
-copy, or distribute this code. Contact the repository owner if you'd like
-to discuss licensing.
+MIT — see [LICENSE](LICENSE). The code is free to use, modify, and
+distribute. This covers the source code only: it does not grant any right
+to the "Meridian Legal Intelligence" name, logo, or brand, and it does not
+make the Terms/Privacy/Disclaimer pages in `website/` into usable legal
+documents for your own organization any more than copying them would —
+see the known limitations above.
 
 ---
 
