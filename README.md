@@ -10,7 +10,9 @@ blank page. Built as a legal-AI consultancy's platform, not a law firm: it
 does not practice law or give legal advice, and every output is meant to be
 reviewed by a licensed attorney before use.
 
-[**Live-tested build log →**](docs/BUILD_LOG.md) · Not legal advice — see the
+**[Live app →](https://frontend-blond-psi-w035lsv557.vercel.app)** ·
+**[API →](https://meridian-legal-backend-pgwh.onrender.com/health)** ·
+[Live-tested build log →](docs/BUILD_LOG.md) · Not legal advice — see the
 AI Output Disclaimer at `frontend/src/app/disclaimer/page.tsx`.
 
 ---
