@@ -39,7 +39,14 @@ class GroqProvider(LLMProvider):
     """Groq's free-tier hosted inference API (OpenAI-compatible chat
     completions), for fast cloud generation with no self-hosted compute --
     the production default when no Anthropic key is configured, since
-    Ollama isn't realistically runnable on a free hosting tier."""
+    Ollama isn't realistically runnable on a free hosting tier.
+
+    Groq retires/renames models from their catalog periodically -- this
+    was confirmed live when `llama-3.3-70b-versatile` (the original
+    default) started returning a 404. If GROQ_MODEL starts failing with a
+    404, check currently active models with:
+        curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"
+    """
 
     def __init__(self, model: str | None = None, api_key: str | None = None):
         self._api_key = api_key or settings.groq_api_key

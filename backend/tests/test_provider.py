@@ -87,7 +87,7 @@ def test_groq_provider_generate_parses_response(monkeypatch):
     def fake_post(url, headers, json, timeout):
         assert url == "https://api.groq.com/openai/v1/chat/completions"
         assert headers["Authorization"] == "Bearer test-key"
-        assert json["model"] == "llama-3.3-70b-versatile"
+        assert json["model"] == "openai/gpt-oss-120b"
         return FakeResponse()
 
     monkeypatch.setattr("httpx.post", fake_post)
