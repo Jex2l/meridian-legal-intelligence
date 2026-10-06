@@ -22,7 +22,7 @@ you'd like (or keep you anonymous, if you'd rather).
 
 - The backend API (`backend/app/api/`) and its authentication, workspace
   isolation, and data-handling logic
-- The client portal and marketing site (`frontend/`, `website/`)
+- The client portal and marketing site (`frontend/`)
 - Dependency vulnerabilities in code we ship
 
 ## Out of Scope

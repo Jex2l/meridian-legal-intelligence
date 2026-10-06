@@ -5,7 +5,6 @@ import { api, ApiError } from "@/lib/api";
 import type { AuthSession } from "@/lib/api";
 import Logo from "./Logo";
 
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL || "http://localhost:3001";
 
 export default function AuthForm({ onAuthenticated }: { onAuthenticated: (s: AuthSession) => void }) {
   const [mode, setMode] = useState<"login" | "signup">("signup");
@@ -42,7 +41,7 @@ export default function AuthForm({ onAuthenticated }: { onAuthenticated: (s: Aut
               "repeating-linear-gradient(90deg, transparent, transparent 79px, #B68A35 80px), repeating-linear-gradient(0deg, transparent, transparent 79px, #B68A35 80px)",
           }}
         />
-        <a href={MARKETING_URL} className="relative">
+        <a href="/" className="relative">
           <Logo dark />
         </a>
 
@@ -147,15 +146,15 @@ export default function AuthForm({ onAuthenticated }: { onAuthenticated: (s: Aut
                 />
                 <span>
                   I agree to the{" "}
-                  <a href={`${MARKETING_URL}/terms`} target="_blank" rel="noopener noreferrer" className="font-medium text-navy underline">
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-navy underline">
                     Terms of Service
                   </a>
                   ,{" "}
-                  <a href={`${MARKETING_URL}/privacy`} target="_blank" rel="noopener noreferrer" className="font-medium text-navy underline">
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-navy underline">
                     Privacy Policy
                   </a>
                   , and{" "}
-                  <a href={`${MARKETING_URL}/disclaimer`} target="_blank" rel="noopener noreferrer" className="font-medium text-navy underline">
+                  <a href="/disclaimer" target="_blank" rel="noopener noreferrer" className="font-medium text-navy underline">
                     AI Output Disclaimer
                   </a>
                   .

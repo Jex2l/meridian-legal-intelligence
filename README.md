@@ -11,7 +11,7 @@ does not practice law or give legal advice, and every output is meant to be
 reviewed by a licensed attorney before use.
 
 [**Live-tested build log →**](docs/BUILD_LOG.md) · Not legal advice — see the
-AI Output Disclaimer at `website/src/app/disclaimer/page.tsx`.
+AI Output Disclaimer at `frontend/src/app/disclaimer/page.tsx`.
 
 ---
 
@@ -53,15 +53,14 @@ was reached, not just the number itself.
 | 🌐 **Public case-law corpus** | Cross-document research alongside your own files, scoped correctly |
 | 🤖 **Swappable LLM** | Anthropic by default; falls back automatically to a local Ollama model if no API key is set — zero cloud dependency required |
 | 📊 **Eval harness** | 36-item gold Q/A set, recall@k/precision@k/MRR, citation accuracy, faithfulness, a reranker-on/off comparison table |
-| 🏢 **Client portal + marketing site** | Branded Next.js apps — chat + source viewer for clients, a public site with real Terms/Privacy/AI-disclaimer pages |
+| 🏢 **Client portal + marketing site** | One branded Next.js app — public marketing pages at `/`, client chat + source viewer at `/portal`, real Terms/Privacy/AI-disclaimer pages |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     subgraph Client
-        UI["Next.js client portal\nchat + source viewer"]
-        WEB["Next.js marketing site\n+ legal pages"]
+        UI["Next.js app\n/ marketing, /portal client chat + source viewer"]
     end
 
     subgraph Backend [FastAPI backend]
@@ -92,9 +91,9 @@ flowchart LR
 - **Backend:** Python, FastAPI, SQLAlchemy, Postgres + `pgvector`
 - **Retrieval:** `sentence-transformers` embeddings + cross-encoder reranker, Postgres full-text search
 - **Generation:** `anthropic` SDK, or local inference via Ollama — behind one swappable `LLMProvider` interface
-- **Client portal & marketing site:** Next.js (App Router), TypeScript, Tailwind CSS
+- **Client portal & marketing site:** one Next.js (App Router) app, TypeScript, Tailwind CSS — marketing pages at `/`, client portal at `/portal`
 - **Infra:** Docker Compose for local dev (notes on a Kubernetes path in the build log)
-- **Testing:** `pytest` (47 backend tests against a live Postgres container), `npm run build` for both frontend apps
+- **Testing:** `pytest` (47 backend tests against a live Postgres container), `npm run build` for the frontend app
 
 ## Quickstart
 
@@ -110,15 +109,10 @@ cp ../.env.example .env   # add ANTHROPIC_API_KEY, or run `ollama serve` locally
 python -m pytest -q       # 52 tests, all against the live Postgres container
 uvicorn app.api.main:app --reload --port 8000
 
-# 3. client portal (separate terminal)
+# 3. client portal + marketing site (separate terminal)
 cd frontend
 cp .env.local.example .env.local
-npm install && npm run dev   # http://localhost:3000
-
-# 4. marketing site (separate terminal, optional)
-cd website
-cp .env.local.example .env.local
-npm install && npm run dev -- --port 3001   # http://localhost:3001
+npm install && npm run dev   # http://localhost:3000 (marketing at /, portal at /portal)
 ```
 
 Or skip the UI entirely:
@@ -157,8 +151,7 @@ starts, a 512MB RAM ceiling, no OCR without a paid tier, ephemeral disk).
 │       ├── core/            # config, db, security
 │       └── models/          # SQLAlchemy models
 │   └── tests/               # one file per package above, all against live Postgres
-├── frontend/                # Next.js client portal — chat + source viewer
-├── website/                 # Next.js marketing site — includes /terms, /privacy, /disclaimer
+├── frontend/                # Next.js app — marketing site at /, client portal (chat + source viewer) at /portal, includes /terms, /privacy, /disclaimer
 ├── samples/                 # sample document for manual testing
 └── docs/BUILD_LOG.md        # full phase-by-phase build history, bugs found and fixed, real eval numbers
 ```
@@ -203,7 +196,7 @@ Full list, with context for each, in [docs/BUILD_LOG.md](docs/BUILD_LOG.md).
 MIT — see [LICENSE](LICENSE). The code is free to use, modify, and
 distribute. This covers the source code only: it does not grant any right
 to the "Meridian Legal Intelligence" name, logo, or brand, and it does not
-make the Terms/Privacy/Disclaimer pages in `website/` into usable legal
+make the Terms/Privacy/Disclaimer pages into usable legal
 documents for your own organization any more than copying them would —
 see the known limitations above. Third-party dependency licenses are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) (not exhaustive — see that

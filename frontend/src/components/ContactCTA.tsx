@@ -25,7 +25,7 @@ export default function ContactCTA() {
           <p className="mt-8 text-sm text-navy/60">
             Already a client?{" "}
             <a
-              href={process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}
+              href="/portal"
               className="font-semibold text-navy underline underline-offset-4"
             >
               Log in to your workspace →

@@ -25,7 +25,7 @@ export default function Footer() {
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-widest text-white/40">Platform</h4>
               <ul className="mt-4 space-y-2.5 text-sm">
-                <li><a href={process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"} className="hover:text-white">Client Login</a></li>
+                <li><a href="/portal" className="hover:text-white">Client Login</a></li>
                 <li><a href="/#contact" className="hover:text-white">Request a Demo</a></li>
               </ul>
             </div>

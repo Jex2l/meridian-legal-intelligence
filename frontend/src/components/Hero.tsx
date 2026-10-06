@@ -1,4 +1,3 @@
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 export default function Hero() {
   return (
@@ -31,7 +30,7 @@ export default function Hero() {
             Request a Demo
           </a>
           <a
-            href={APP_URL}
+            href="/portal"
             className="rounded-sm border border-white/30 px-7 py-3.5 text-center text-sm font-semibold text-white transition hover:border-white/60"
           >
             Client Login →

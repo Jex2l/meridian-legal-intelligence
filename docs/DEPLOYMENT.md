@@ -111,28 +111,21 @@ later.
 
 ## 5. Client portal + marketing site — Vercel
 
-Deploy **two** separate Vercel projects from the same repo (one per app):
+One Vercel project for the whole `frontend` app — the marketing pages live
+at `/` and the client portal (chat + source viewer) lives at `/portal`
+within the same Next.js build:
 
 1. Go to [vercel.com](https://vercel.com), sign up (GitHub login easiest).
 2. **Add New → Project**, import `meridian-legal-intelligence`.
    - **Root Directory:** `frontend`
    - Framework preset: Next.js (auto-detected)
-   - Add environment variables:
-     | Key | Value |
-     |---|---|
-     | `NEXT_PUBLIC_API_BASE_URL` | your Render backend URL from step 4 |
-     | `NEXT_PUBLIC_MARKETING_URL` | the website's Vercel URL (you'll get this in the next sub-step — come back and set it after) |
-   - Deploy. Note the resulting URL, e.g. `https://meridian-legal-portal.vercel.app`.
-3. **Add New → Project** again, same repo:
-   - **Root Directory:** `website`
    - Add environment variable:
      | Key | Value |
      |---|---|
-     | `NEXT_PUBLIC_APP_URL` | the `frontend` project's Vercel URL from the previous sub-step |
-   - Deploy. Note this URL too, e.g. `https://meridian-legal-site.vercel.app`.
-4. Go back to the `frontend` project's env vars and set
-   `NEXT_PUBLIC_MARKETING_URL` to this `website` URL, then redeploy
-   (Vercel → Deployments → ⋯ → Redeploy) so it picks up the new value.
+     | `NEXT_PUBLIC_API_BASE_URL` | your Render backend URL from step 4 |
+   - Deploy. Note the resulting URL, e.g. `https://meridian-legal-portal.vercel.app`.
+3. On GitHub pushes to `main`, Vercel auto-deploys this project — no second
+   project or cross-linking env vars needed.
 
 ## 6. Close the loop — CORS
 
@@ -143,7 +136,7 @@ Vercel URL (comma-separate if you later add a custom domain), e.g.:
 CORS_ALLOWED_ORIGINS=https://meridian-legal-portal.vercel.app
 ```
 
-Redeploy the backend. Now visit your `website` URL, click "Client Login",
+Redeploy the backend. Now visit your `frontend` URL, click "Client Login",
 sign up, upload a document, and ask a question — that's the full stack
 live.
 

@@ -3,8 +3,6 @@
 import { useState } from "react";
 import Logo from "./Logo";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
 const LINKS = [
   { href: "/#services", label: "Services" },
   { href: "/#how-it-works", label: "How It Works" },
@@ -33,7 +31,7 @@ export default function Nav() {
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
-          <a href={APP_URL} className="text-sm font-medium text-navy/80 hover:text-navy">
+          <a href="/portal" className="text-sm font-medium text-navy/80 hover:text-navy">
             Client Login
           </a>
           <a
@@ -63,7 +61,7 @@ export default function Nav() {
                 {link.label}
               </a>
             ))}
-            <a href={APP_URL} className="text-sm font-medium text-navy/80">
+            <a href="/portal" className="text-sm font-medium text-navy/80">
               Client Login
             </a>
             <a href="/#contact" className="rounded-sm bg-navy px-4 py-2 text-center text-sm font-semibold text-white">
