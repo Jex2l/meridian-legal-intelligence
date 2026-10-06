@@ -34,6 +34,7 @@ generation, not vice versa).
 
 import re
 
+from app.core.config import settings
 from app.generation.citations import extract_and_validate_citations
 from app.retrieval.reranker import rerank as cross_encoder_score
 from app.retrieval.search import RetrievedChunk
@@ -128,7 +129,21 @@ def is_answer_faithful(answer_text: str, retrieved: list[RetrievedChunk], min_ra
     """Live gate: True unless a majority of claim spans fail the
     faithfulness check. An answer with no citations at all (e.g. the
     no-support fallback) is trivially faithful -- that case is handled
-    separately by the citation-requirement gate."""
+    separately by the citation-requirement gate.
+
+    This check depends on the SAME cross-encoder model as retrieval
+    reranking (see module docstring), not a separate one -- found live
+    when ENABLE_RERANKER=false (set to keep retrieval within a
+    RAM-constrained host's budget, see requirements-render.txt) still let
+    a request reach this function, which then tried to import
+    sentence_transformers anyway and crashed with ModuleNotFoundError.
+    Disabling the reranker must disable every caller of that model, not
+    just the retrieval one -- so this gate is skipped (trivially True,
+    same as "no cited sentences") whenever ENABLE_RERANKER is off. The
+    citation-validity gate (citations.py) still runs regardless; only this
+    extra entailment layer is unavailable without the model."""
+    if not settings.enable_reranker:
+        return True
     faithful, total = faithfulness_score(answer_text, retrieved)
     if total == 0:
         return True

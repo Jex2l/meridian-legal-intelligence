@@ -5,6 +5,7 @@ import pytest
 import sqlalchemy
 
 from app.core.db import init_db
+from app.generation import faithfulness as faithfulness_module
 from app.generation.faithfulness import faithfulness_score, is_answer_faithful
 from app.retrieval.search import RetrievedChunk
 
@@ -117,3 +118,24 @@ def test_majority_rule_across_distinct_citations_in_one_paragraph():
     assert total == 3
     assert faithful == 1
     assert is_answer_faithful(answer, chunks) is False
+
+
+def test_is_answer_faithful_skips_cross_encoder_when_reranker_disabled(monkeypatch):
+    """Regression test for a real production bug: ENABLE_RERANKER=false
+    (set to keep retrieval within a RAM-constrained host's budget) must
+    disable EVERY caller of the cross-encoder model, not just retrieval
+    reranking. Found live: is_answer_faithful() still tried to import
+    sentence_transformers (not installed in that configuration) and
+    crashed every /ask request with ModuleNotFoundError -> 500."""
+    chunks = [_chunk("Each party shall indemnify the other for losses caused by its own gross negligence.")]
+    answer = "The moon is made of cheese according to this clause [1]."  # would normally score unfaithful
+
+    def exploding_rerank(*args, **kwargs):
+        raise AssertionError("cross-encoder must not be invoked when enable_reranker is False")
+
+    monkeypatch.setattr(faithfulness_module.settings, "enable_reranker", False)
+    monkeypatch.setattr(faithfulness_module, "cross_encoder_score", exploding_rerank)
+
+    # Must return True (trivially faithful, same as "no cited sentences")
+    # instead of raising or actually scoring the claim.
+    assert is_answer_faithful(answer, chunks) is True

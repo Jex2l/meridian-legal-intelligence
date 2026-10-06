@@ -34,11 +34,22 @@ def _warm_up_models() -> None:
     """
     try:
         from app.retrieval.embedding import embed_texts
-        from app.retrieval.reranker import rerank
 
         embed_texts(["warm-up"])
-        rerank("warm-up", ["warm-up"])
-        logger.info("Embedding and reranker models warmed up.")
+
+        # The reranker needs sentence_transformers, deliberately not
+        # installed in production (see requirements-render.txt) when
+        # ENABLE_RERANKER=false -- warming it up here would always fail
+        # with ModuleNotFoundError in that configuration. Respect the same
+        # flag that gates every other caller of this model (hybrid_search's
+        # use_reranker default and app/generation/faithfulness.py's live
+        # gate) instead of unconditionally trying.
+        if settings.enable_reranker:
+            from app.retrieval.reranker import rerank
+
+            rerank("warm-up", ["warm-up"])
+
+        logger.info("Models warmed up (reranker %s).", "included" if settings.enable_reranker else "skipped")
     except Exception:  # noqa: BLE001
         # Don't block startup on a warm-up failure (e.g. no network to
         # HuggingFace in some environment) -- the app will just pay the
