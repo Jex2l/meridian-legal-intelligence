@@ -79,7 +79,14 @@ class GroqProvider(LLMProvider):
                 raise RuntimeError("Groq API rejected the request: GROQ_API_KEY is invalid or expired.") from exc
             if exc.response.status_code == 429:
                 raise RuntimeError("Groq API rate limit reached; try again shortly.") from exc
-            raise RuntimeError(f"Groq API returned an error: {exc}") from exc
+            # Include the actual response body (Groq returns a JSON error
+            # with a specific reason, e.g. "model not found" vs. some other
+            # routing issue) -- str(exc) alone only gives the status code,
+            # which was indistinguishable between several different real
+            # causes during live debugging.
+            raise RuntimeError(
+                f"Groq API returned {exc.response.status_code} for model '{self._model}': {exc.response.text[:300]}"
+            ) from exc
 
         try:
             return response.json()["choices"][0]["message"]["content"]
