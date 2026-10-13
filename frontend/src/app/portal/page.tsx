@@ -67,11 +67,21 @@ export default function Home() {
         onLogout={handleLogout}
       />
       <main className="flex min-w-0 flex-1">
-        <div className="w-1/2 border-r border-navy/10">
-          <Chat token={session.access_token} onCitationClick={handleCitationClick} />
+        <div className="flex w-1/2 min-w-0 flex-col border-r border-navy/10">
+          <div className="flex-shrink-0 border-b border-navy/10 px-4 py-2.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy/40">Research assistant</p>
+          </div>
+          <div className="min-h-0 flex-1">
+            <Chat token={session.access_token} onCitationClick={handleCitationClick} />
+          </div>
         </div>
-        <div className="w-1/2">
-          <SourceViewer token={session.access_token} documentId={selectedDocumentId} highlightChunkId={highlightChunkId} />
+        <div className="flex w-1/2 min-w-0 flex-col">
+          <div className="flex-shrink-0 border-b border-navy/10 px-4 py-2.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy/40">Source viewer</p>
+          </div>
+          <div className="min-h-0 flex-1">
+            <SourceViewer token={session.access_token} documentId={selectedDocumentId} highlightChunkId={highlightChunkId} />
+          </div>
         </div>
       </main>
     </div>

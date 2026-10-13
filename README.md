@@ -17,6 +17,20 @@ AI Output Disclaimer at `frontend/src/app/disclaimer/page.tsx`.
 
 ---
 
+## Table of contents
+
+- [Why this exists](#why-this-exists)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Quickstart](#quickstart)
+- [Deploying to production, for free](#deploying-to-production-for-free)
+- [Project structure](#project-structure)
+- [Evaluation](#evaluation)
+- [Known limitations](#known-limitations)
+- [License](#license)
+- [Compliance & reporting](#compliance--reporting)
+
 ## Why this exists
 
 Most "AI legal research" demos fall apart the moment you ask a question the
