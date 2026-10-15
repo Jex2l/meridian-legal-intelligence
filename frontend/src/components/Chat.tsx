@@ -16,7 +16,7 @@ type Message = {
 };
 
 const SUGGESTIONS: Record<"ask" | "draft", string[]> = {
-  ask: ["What does the indemnification clause say?", "Who bears the risk of loss during shipping?"],
+  ask: ["What is this document about?", "Summarize the key points of this document."],
   draft: ["Rewrite the indemnity clause to favor the buyer", "Draft a limitation-of-liability clause"],
 };
 
@@ -214,7 +214,7 @@ export default function Chat({
               }
             }}
             placeholder={
-              mode === "ask" ? "What does the indemnification clause say?" : "Rewrite the indemnity clause to favor the buyer"
+              mode === "ask" ? "What is this document about?" : "Rewrite the indemnity clause to favor the buyer"
             }
             rows={2}
             className="flex-1 resize-none rounded-md border border-navy/20 px-3 py-2 text-sm transition focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/30"
