@@ -55,21 +55,28 @@ real traffic.
 limits (requests/tokens per minute) that reset over time — fine for a
 demo's traffic, will throttle under real load.
 
-## 3. Embeddings — HuggingFace (needed before Render)
+## 3. Embeddings — Cohere (needed before Render)
 
 Render's free tier is 512MB RAM, which — confirmed by actually deploying
 and hitting it — is not enough to load the embedding + reranker models
 locally via `sentence-transformers`/`torch`, even with a CPU-only torch
-build. So production calls HuggingFace's hosted embedding API instead of
-loading a model in-process, and runs without the cross-encoder reranker
-(hybrid search falls back to its RRF fused score — see
-`app/retrieval/search.py`).
+build. So production calls a hosted embedding API instead of loading a
+model in-process, and runs without the cross-encoder reranker (hybrid
+search falls back to its RRF fused score — see `app/retrieval/search.py`).
 
-1. Go to [huggingface.co](https://huggingface.co), sign up (free, no card).
-2. Go to **Settings → Access Tokens → Create new token**. Choose the
-   **"Fine-grained"** type, give it a name, and enable the
-   **"Make calls to Inference Providers"** permission (sometimes shown as
-   "Inference" under serverless). Copy the token (starts with `hf_`).
+This was originally HuggingFace's hosted Inference API
+(`EMBEDDING_PROVIDER=huggingface_api`) — confirmed live, it now returns
+`402 Payment Required` for this model once the account's free quota is
+used, requiring a paid/credited HF account. Cohere's embed API
+(`EMBEDDING_PROVIDER=cohere`) works with a free trial key instead, no
+billing required (rate-limited, but fine for a demo) — see
+`app/retrieval/embedding.py`.
+
+1. Go to [dashboard.cohere.com](https://dashboard.cohere.com), sign up
+   (free, no card).
+2. Go to **API Keys**, copy the default **Trial key** (starts with
+   nothing distinctive — just a long string; trial keys are rate-limited
+   but work with no billing attached).
 
 ## 4. Backend API — Render
 
@@ -78,7 +85,7 @@ loading a model in-process, and runs without the cross-encoder reranker
 2. **New + → Blueprint**, connect the `meridian-legal-intelligence` repo.
    Render will detect `render.yaml` at the repo root and propose a
    `meridian-legal-backend` web service on the free plan, with
-   `EMBEDDING_PROVIDER=huggingface_api` and `ENABLE_RERANKER=false`
+   `EMBEDDING_PROVIDER=cohere` and `ENABLE_RERANKER=false`
    already set from the blueprint. Confirm it.
    - If you'd rather configure manually instead of via Blueprint: **New +
      → Web Service**, connect the repo, set **Root Directory** to
@@ -91,12 +98,12 @@ loading a model in-process, and runs without the cross-encoder reranker
    |---|---|
    | `DATABASE_URL` | the Supabase connection string from step 1 (with `postgresql+psycopg://`) |
    | `GROQ_API_KEY` | the key from step 2 |
-   | `HF_API_TOKEN` | the token from step 3 |
+   | `COHERE_API_KEY` | the key from step 3 |
    | `SECRET_KEY` | a long random string — generate one with `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` and never reuse the repo's dev default |
    | `CORS_ALLOWED_ORIGINS` | leave as `http://localhost:3000` for now — you'll update this in step 6 once Vercel gives you real URLs |
    | `UPLOAD_DIR` | `/tmp/uploads` (see Known Limitations below) |
    - If you deployed manually instead of via Blueprint, also add
-     `EMBEDDING_PROVIDER=huggingface_api` and `ENABLE_RERANKER=false` here
+     `EMBEDDING_PROVIDER=cohere` and `ENABLE_RERANKER=false` here
      (the Blueprint path sets these automatically from `render.yaml`).
 4. Deploy. Once live, Render gives you a URL like
    `https://meridian-legal-backend.onrender.com`. Check
@@ -165,10 +172,12 @@ live.
   up here; if you need reranking in production, the realistic options are
   upgrading off the free Render plan to fit the local model, or building a
   remote reranker integration (not done in this repo).
-- **Embeddings depend on HuggingFace's Inference API being up and within
-  its free rate limits.** If HF has an outage or you hit a rate limit,
-  ingestion and retrieval will fail with a clear error (not a crash) until
-  it recovers.
+- **Embeddings depend on Cohere's embed API being up and within its trial
+  key's rate limits.** If Cohere has an outage or you hit the trial rate
+  limit, ingestion and retrieval will fail with a clear error (not a
+  crash) until it recovers. (HuggingFace's Inference API was tried first
+  here and dropped — it started returning `402 Payment Required` for this
+  model once the free quota was used, requiring a paid HF account.)
 - **Demo auth is still demo auth.** Nothing about this deployment adds
   password authentication — see the existing Known Limitations in the
   main [README](../README.md).

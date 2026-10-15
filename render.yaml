@@ -13,10 +13,16 @@ services:
     # requirements-render.txt deliberately omits sentence-transformers (and
     # therefore torch/transformers/numpy/scipy/sklearn) -- confirmed live,
     # loading two local ML models exceeded a 512MB host's RAM even with a
-    # CPU-only torch build. Production instead calls HF's hosted embedding
-    # API and disables the cross-encoder reranker (EMBEDDING_PROVIDER and
+    # CPU-only torch build. Production instead calls a hosted embedding API
+    # and disables the cross-encoder reranker (EMBEDDING_PROVIDER and
     # ENABLE_RERANKER below) -- see requirements-render.txt's own comment
     # for the full reasoning.
+    #
+    # EMBEDDING_PROVIDER=cohere, not huggingface_api: HF's hosted Inference
+    # API started returning 402 Payment Required for this model once the
+    # account's free quota was used, requiring a paid/credited HF account.
+    # Cohere's embed API works with a free trial key instead (rate-limited,
+    # but no billing needed) -- see app/retrieval/embedding.py.
     buildCommand: "pip install -r requirements-render.txt"
     startCommand: "uvicorn app.api.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
@@ -24,10 +30,10 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.2
       - key: EMBEDDING_PROVIDER
-        value: huggingface_api
+        value: cohere
       - key: ENABLE_RERANKER
         value: "false"
       # Secrets and deployment-specific values (DATABASE_URL, GROQ_API_KEY,
-      # HF_API_TOKEN, SECRET_KEY, CORS_ALLOWED_ORIGINS, UPLOAD_DIR) are set
+      # COHERE_API_KEY, SECRET_KEY, CORS_ALLOWED_ORIGINS, UPLOAD_DIR) are set
       # in the Render dashboard's Environment tab, not here -- see
       # docs/DEPLOYMENT.md.

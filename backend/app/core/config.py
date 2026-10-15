@@ -21,10 +21,17 @@ class Settings(BaseSettings):
     # "local" loads the model in-process via sentence-transformers (needs
     # torch, ~1GB+ RAM once both embedding+reranker models are loaded --
     # fine for local dev, too much for a 512MB free host). "huggingface_api"
-    # calls HF's hosted inference API instead, so no local ML dependency is
-    # needed at all. See app/retrieval/embedding.py.
+    # and "cohere" both call a hosted embedding API instead, so no local ML
+    # dependency is needed at all -- "huggingface_api" requires a paid/
+    # credited HF account (the free Inference API returns 402 once a
+    # model's free quota is used up); "cohere" uses Cohere's free-tier trial
+    # key instead. See app/retrieval/embedding.py.
     embedding_provider: str = "local"
     hf_api_token: str = ""
+    cohere_api_key: str = ""
+    # embed-english-light-v3.0 is 384-dim, matching embedding_dim above --
+    # switching to Cohere needs no pgvector column migration.
+    cohere_embedding_model: str = "embed-english-light-v3.0"
     # Cross-encoder reranking has no remote-API fallback here (see
     # app/retrieval/search.py) -- disabling it in production avoids loading
     # a second local model, trading some retrieval precision for fitting in
