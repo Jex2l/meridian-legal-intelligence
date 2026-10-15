@@ -22,7 +22,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.generation.citations import ValidationResult, extract_and_validate_citations
+from app.generation.citations import ValidationResult, extract_and_validate_citations, normalize_citation_brackets
 from app.generation.confidence import DRAFTING_CONFIDENCE_THRESHOLD, is_low_confidence
 from app.generation.prompts import DRAFTING_SYSTEM_PROMPT, NO_SUPPORT_MESSAGE, build_drafting_prompt
 from app.generation.provider import LLMProvider, get_default_provider
@@ -62,7 +62,7 @@ def draft(
 
     provider = provider or get_default_provider()
     user_prompt = build_drafting_prompt(task, retrieved)
-    raw_draft = provider.generate(DRAFTING_SYSTEM_PROMPT, user_prompt, max_tokens=2048)
+    raw_draft = normalize_citation_brackets(provider.generate(DRAFTING_SYSTEM_PROMPT, user_prompt, max_tokens=2048))
 
     validation = extract_and_validate_citations(raw_draft, retrieved)
     if not validation.is_fully_grounded:

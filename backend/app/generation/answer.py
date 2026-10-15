@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.generation.citations import ValidationResult, extract_and_validate_citations
+from app.generation.citations import ValidationResult, extract_and_validate_citations, normalize_citation_brackets
 from app.generation.confidence import DEFAULT_CONFIDENCE_THRESHOLD, is_low_confidence
 from app.generation.faithfulness import is_answer_faithful
 from app.generation.prompts import NO_SUPPORT_MESSAGE, SYSTEM_PROMPT, build_user_prompt
@@ -48,7 +48,7 @@ def answer_question(
 
     provider = provider or get_default_provider()
     user_prompt = build_user_prompt(question, retrieved)
-    raw_answer = provider.generate(SYSTEM_PROMPT, user_prompt)
+    raw_answer = normalize_citation_brackets(provider.generate(SYSTEM_PROMPT, user_prompt))
 
     validation = extract_and_validate_citations(raw_answer, retrieved)
 

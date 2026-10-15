@@ -5,7 +5,7 @@ import sqlalchemy
 
 from app.core.db import init_db
 from app.generation.answer import answer_question
-from app.generation.citations import extract_and_validate_citations
+from app.generation.citations import extract_and_validate_citations, normalize_citation_brackets
 from app.generation.draft import draft
 from app.generation.prompts import NO_SUPPORT_MESSAGE
 from app.generation.provider import FakeProvider
@@ -128,6 +128,26 @@ def test_draft_mode_produces_cited_draft(db_session, workspace_with_indemnity_do
     assert not result.low_confidence
     assert "Reasoning" in result.draft_text
     assert result.validation.is_fully_grounded
+
+
+def test_answer_with_fullwidth_bracket_citation_is_accepted(db_session, workspace_with_indemnity_doc):
+    ws = workspace_with_indemnity_doc
+    # Confirmed live: Groq's openai/gpt-oss-120b sometimes emits CJK
+    # lenticular brackets (U+3010/U+3011) instead of ASCII "[1]" -- an
+    # otherwise perfectly grounded answer was wrongly rejected as
+    # "no_citation" because the ASCII-only regex found zero markers.
+    # normalize_citation_brackets() in answer_question() must catch this.
+    provider = FakeProvider("The seller must indemnify the buyer for breach-related losses【1】.")
+    result = answer_question(db_session, "What does the indemnification clause say?", ws.id, provider=provider)
+
+    assert not result.ungrounded_response_rejected
+    assert "[1]" in result.answer_text
+    assert result.validation.is_fully_grounded
+
+
+def test_normalize_citation_brackets_converts_unicode_lookalikes():
+    assert normalize_citation_brackets("See 【1】 and ［2］.") == "See [1] and [2]."
+    assert normalize_citation_brackets("Already ASCII [3].") == "Already ASCII [3]."
 
 
 def test_citation_extraction_deduplicates_and_sorts():

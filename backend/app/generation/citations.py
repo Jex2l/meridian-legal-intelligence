@@ -11,6 +11,20 @@ from app.retrieval.search import RetrievedChunk
 
 _CITATION_PATTERN = re.compile(r"\[(\d+)\]")
 
+# The LLM is instructed to cite as ASCII "[1]", but was observed live
+# (Groq's openai/gpt-oss-120b) occasionally emitting Unicode lookalike
+# brackets instead -- e.g. "【1】" (CJK lenticular brackets) or
+# fullwidth "［1］". Those don't match _CITATION_PATTERN, so an
+# otherwise fully-grounded answer was wrongly rejected as having "no
+# citation". Normalizing to ASCII brackets right after generation, before
+# any validation, fixes this for citations.py, faithfulness.py, and the
+# frontend's own "[\d+]" parser in one place.
+_BRACKET_LOOKALIKES = str.maketrans({"【": "[", "】": "]", "［": "[", "］": "]"})
+
+
+def normalize_citation_brackets(text: str) -> str:
+    return text.translate(_BRACKET_LOOKALIKES)
+
 
 @dataclass
 class Citation:
