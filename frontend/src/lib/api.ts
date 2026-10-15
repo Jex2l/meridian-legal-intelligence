@@ -1,3 +1,5 @@
+import { clearSession } from "./session";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export type AuthSession = {
@@ -85,6 +87,13 @@ async function request<T>(
       detail = body.detail || detail;
     } catch {
       // ignore
+    }
+    if (resp.status === 401 && token) {
+      // The stored session token was rejected (expired, or signed under an
+      // old secret) -- clear it and bounce to the login form instead of
+      // leaving the user looking "logged in" with every call failing.
+      clearSession();
+      if (typeof window !== "undefined") window.location.reload();
     }
     throw new ApiError(resp.status, detail);
   }
